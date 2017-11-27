@@ -1,0 +1,14 @@
+name: immix-cr
+version: 0.1.0
+
+authors:
+  - Julien Portalier <julien@portalier.com>
+
+description: |
+  Immix GC in Crystal
+
+development_dependencies:
+  minitest:
+    github: ysbaddaden/minitest.cr
+
+license: Apache-2.0

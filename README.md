@@ -19,7 +19,27 @@ This GC shall eventually be improved to allow a precise marking of identified
 objects in the HEAP, while still relying on a conservative stack iterator. It
 may eventually be improved to allow a precise iteration of stacks.
 
-## TODO:
+
+## WARNING
+
+This GC has NEVER BEEN TRIED!
+
+- It's a WORK IN PROGRESS.
+
+- The test suite is merely scaffold tests for TDD data structures and their
+  isolated behavior.
+
+- This is UGLY Crystal and highly UNSAFE code —it can't rely on safe Crystal
+  classes that would in turn require the GC. It's thus as UNSAFE as C code
+  written by a newbie. It MUST go throught intensive Valgrind sessions of stress
+  test suites.
+
+- You can't allocate objects larger than 8191 bytes (i.e. you can't use `IO`).
+
+- In fact `src/gc.cr` is merely a scaffold and probably doesn't even compile.
+
+
+## TODO
 
 1. Large Object Space.
 

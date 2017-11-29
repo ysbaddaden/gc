@@ -258,5 +258,90 @@ module GC
       assert_equal b1.value.line_at(15) + sizeof(Object), d
     end
 
+    # Scenario 5: create 2 large objects. The first object reference is lost and
+    # thus should be freed. The second one is still referenced and thus musn't
+    # be collected.
+    def test_large_allocations
+      first = @la.allocate_large(SizeT.new(8192))
+      second = @la.allocate_large(SizeT.new(8192))
+
+      first = Pointer(Void).null
+
+      @collector.collect
+
+      i = 0
+      @ga.each_chunk do |chunk|
+        case i += 1
+        when 2
+          assert chunk.value.marked?
+          assert chunk.value.allocated?
+        when 1, 3
+          refute chunk.value.marked?
+          assert chunk.value.free?
+        end
+      end
+      assert_equal 3, i, "expected 1 allocated + 2 free chunks"
+    end
+
+    # Scenario 6: creates a small object and a number of large objects. Add
+    # references back and forth between small and large objects then lose most
+    # references. All objects should still be found.
+    def test_large_and_small_allocations_inter_references
+      small = @la.allocate_small(SizeT.new(128))
+
+      first = @la.allocate_large(SizeT.new(8192))
+      second = @la.allocate_large(SizeT.new(8192))
+      third = @la.allocate_large(SizeT.new(8192))
+      fourth = @la.allocate_large(SizeT.new(8192))
+      fifth = @la.allocate_large(SizeT.new(8192))
+
+      # reference large object from small object, then lose large reference:
+      small.as(Word*).value = Word.new(fifth.address)
+      fifth = Pointer(Void).null
+
+      # reference small object from large object, then lose small reference:
+      first.as(Word*).value = Word.new(small.address)
+      small = Pointer(Void).null
+
+      # reference inner pointer to large object, then lose main reference:
+      (first.as(Word*) + 1).value = Word.new(second.address) + 128
+      second = Pointer(Void).null
+
+      # lose large object reference (must be collected):
+      fourth = Pointer(Void).null
+
+      @collector.collect
+
+      # all large objects must have been found, but one (fourth):
+      i = 0
+      @ga.each_chunk do |chunk|
+        case i += 1
+        when 1, 2, 3, 5
+          assert chunk.value.marked?
+          refute chunk.value.free?
+        when 4, 6
+          refute chunk.value.marked?
+          assert chunk.value.free?
+        end
+      end
+      assert_equal 6, i, "expected 4 allocated + 2 free chunks"
+
+      # small object must have been found too (and block, lines be marked):
+      object = (@ga.@heap_start + LINE_SIZE).as(Object*)
+      assert object.value.marked?
+
+      block = Block.from(object.as(Void*))
+      assert block.value.marked?
+
+      LINE_COUNT.times do |i|
+        line_header = block.value.line_header_at(i)
+        if i == 0
+          assert line_header.value.marked?
+        else
+          refute line_header.value.marked?
+        end
+      end
+    end
+
   end
 end

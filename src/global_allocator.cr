@@ -80,7 +80,7 @@ module GC
     end
 
     def in_large_heap?(pointer : Void*) : Bool
-      false
+      @large_heap_start < pointer < @large_heap_stop
     end
 
     def each_block
@@ -89,6 +89,10 @@ module GC
         yield cursor.as(Block*)
         cursor += BLOCK_SIZE
       end
+    end
+
+    def each_chunk
+      @chunks.each { |chunk| yield chunk }
     end
 
     # Request the next available block to allocate objects to. First tries to
@@ -188,6 +192,11 @@ module GC
         else
           free(block)
         end
+      end
+
+      each_chunk do |chunk|
+        next if chunk.value.marked?
+        chunk.value.flag = Chunk::Flag::Free
       end
     end
 

@@ -35,7 +35,7 @@ module GC
       spawn do
         GC.debug ""
 
-        # unmark then walk stacks to mark live references:
+        # unmark objects in small and large object spaces:
         unmark_all
 
         # TODO: implement a precise stack iterator with LLVM GC / STACK MAPS
@@ -71,6 +71,11 @@ module GC
           line_header += 1
         end
       end
+
+      @global_allocator.value.each_chunk do |chunk|
+        # GC.debug "unmark chunk=%lu", chunk
+        chunk.value.unmark
+      end
     end
 
     private def mark_from_region(stack_pointer : Void*, stack_bottom : Void*)
@@ -86,9 +91,9 @@ module GC
           # GC.debug "mark_from_region cursor=%lu value=%lu", cursor, pointer
 
           if @global_allocator.value.in_small_heap?(pointer)
-            mark_object(pointer)
+            mark_small(pointer)
           elsif @global_allocator.value.in_large_heap?(pointer)
-            mark_large_object(pointer)
+            mark_large(pointer)
           end
         end
 
@@ -96,7 +101,7 @@ module GC
       end
     end
 
-    private def mark_object(pointer : Void*) : Nil
+    private def mark_small(pointer : Void*) : Nil
       GC.debug "find object ptr=%lu", pointer
 
       # block = @global_allocator.value.block_for(pointer)
@@ -180,9 +185,26 @@ module GC
       mark_from_region(object.value.mutator_address, bottom)
     end
 
-    # TODO: Collector#mark_large_object
-    private def mark_large_object(pointer : Void*)
-      abort "GC: marking large objects isn't implemented"
+    private def mark_large(pointer : Void*) : Nil
+      # search chunk for large object (may be inner pointer)
+      @global_allocator.value.each_chunk do |chunk|
+        next unless chunk.value.includes?(pointer)
+
+        # don't mark object twice (avoid circular references)
+        if chunk.value.marked?
+          GC.debug "skip marked object=%lu", chunk.value.object_address.as(Void*)
+          return
+        end
+
+        GC.debug "mark object=%lu ptr=%lu", chunk.value.object_address.as(Void*), pointer
+        chunk.value.mark
+
+        # conservative collector: scan the object for heap pointers
+        bottom = chunk.value.object_address.as(Void*) + chunk.value.size
+        mark_from_region(chunk.value.mutator_address, bottom)
+
+        return
+      end
     end
 
     # Iterates the stack of all fibers, except for the stack of the current

@@ -8,7 +8,7 @@ module GC
     def test_next_block
       object_size = SizeT.new(LINE_SIZE)
 
-      # initial: 0 recyclable, 2 free, 0 unavailable blocks
+      ## initial: 0 recyclable, 2 free, 0 unavailable blocks
       ga = GlobalAllocator.new(SizeT.new(BLOCK_SIZE) * 2)
       assert_equal BLOCK_SIZE * 2, ga.heap_size
 

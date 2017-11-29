@@ -6,14 +6,12 @@ require "./collector"
 module GC
   @@global_allocator : GlobalAllocator
   @@collector : Collector
-  @@local_allocator = Pointer(LocalAllocator).null
+  @@local_allocator : LocalAllocator
 
   def self.init(initial_size : Int = DEFAULT_INITIAL_SIZE)
     @@global_allocator = GlobalAllocator.new(SizeT.new(initial_size))
-    @@collector = Collector.new(pointerof(@@global_allocator))
-
-    @@local_allocator = LibC.malloc(sizeof(LocalAllocator)).as(LocalAllocator*)
-    @@local_allocator.value.initialize(pointerof(@@global_allocator))
+    @@local_allocator = LocalAllocator.new(pointerof(@@global_allocator))
+    @@collector = Collector.new(pointerof(@@global_allocator), pointerof(@@local_allocator))
   end
 
   def self.enable
@@ -29,13 +27,15 @@ module GC
   def self.malloc(size : SizeT) : Void*
     object_size = round_to_next_multiple(size, WORD_SIZE)
     if object_size < LARGE_BLOCK_SIZE
-      @@local_allocator.value.allocate_small(object_size)
+      @@local_allocator.allocate_small(object_size)
     else
-      @@local_allocator.value.allocate_large(object_size)
+      @@local_allocator.allocate_large(object_size)
     end
   end
 
   def self.malloc_atomic(size : SizeT) : Void*
+    # TODO: pass atomic flag to local allocator, to avoid conservative marking
+    #       of objects that don't reference HEAP pointers (e.g. buffers).
     malloc(size)
   end
 
@@ -51,7 +51,7 @@ module GC
   end
 
   def self.add_finalizer(object : Reference)
-    # TODO: support Reference finalizers
+    raise "GC: finalizers aren't implemented"
   end
 
   def self.add_finalizer(any)
@@ -77,7 +77,7 @@ module GC
 
   def self.stats
     zero = LibC::ULong.new(0)
-    heap_size = LibC::ULong.new(@@global_allocator.heap_size)
+    heap_size = LibC::ULong.new(@@global_allocator.heap_size + @@global_allocator.large_heap_size)
     Stats.new(heap_size, zero, zero, zero, zero)
   end
 

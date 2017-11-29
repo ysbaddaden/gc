@@ -21,6 +21,10 @@ module GC
       @size
     end
 
+    def size=(value : SizeT) : SizeT
+      @size = value
+    end
+
     def marked? : Bool
       @marked == 1_u8
     end

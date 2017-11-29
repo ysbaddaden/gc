@@ -81,7 +81,61 @@ module GC
     end
 
     def test_allocate_large
-      skip "not implemented"
+      la = LocalAllocator.new(pointerof(@ga))
+
+      # allocate large objects (fills large heap)
+      a1 = la.allocate_large(SizeT.new(8192))
+      a2 = la.allocate_large(SizeT.new(8192))
+      a3 = la.allocate_large(SizeT.new(49056))
+
+      o1 = (a1 - sizeof(Object)).as(Object*)
+      o2 = (a2 - sizeof(Object)).as(Object*)
+      o3 = (a3 - sizeof(Object)).as(Object*)
+
+      c1 = (a1 - sizeof(Chunk)).as(Chunk*)
+      c2 = (a2 - sizeof(Chunk)).as(Chunk*)
+      c3 = (a3 - sizeof(Chunk)).as(Chunk*)
+
+      # objects are bump allocated
+      assert_equal a1 + 8192 + sizeof(Chunk), a2
+      assert_equal a2 + 8192 + sizeof(Chunk), a3
+
+      # objects are initialized
+      assert_equal 8192, o1.value.size
+      assert_equal 8192, o2.value.size
+      assert_equal 49056, o3.value.size
+
+      assert o1.value.large?
+      assert o2.value.large?
+      assert o3.value.large?
+
+      refute o1.value.standard?
+      refute o2.value.standard?
+      refute o3.value.standard?
+
+      # chunks are initialized
+      assert c1.value.allocated?
+      assert c2.value.allocated?
+      assert c3.value.allocated?
+
+      assert_equal c2, c1.value.next
+      assert_equal c3, c2.value.next
+      assert_equal Pointer(Chunk).null, c3.value.next
+
+      # force large heap to grow
+      a4 = la.allocate_large(SizeT.new(8192))
+      o4 = (a4 - sizeof(Object)).as(Object*)
+      c4 = (a4 - sizeof(Chunk)).as(Chunk*)
+
+      assert_equal a3 + 49056 + sizeof(Chunk), a4
+      assert c4.value.allocated?
+
+      # find last chunk (free space)
+      c5 = (a4 + 8192).as(Chunk*)
+      assert c5.value.free?
+
+      assert_equal c4, c3.value.next
+      assert_equal c5, c4.value.next
     end
   end
 end

@@ -24,22 +24,22 @@ module GC
     # The global allocator is responsible for giving blocks from either the
     # recycled or free lists, then collect or grow the HEAP memory. The local
     # allocator merely requests blocks and tries to allocate in them.
-    def allocate_small(object_size : SizeT) : Void*
-      size = object_size + sizeof(Object)
+    def allocate_small(size : SizeT) : Void*
+      object_size = size + sizeof(Object)
 
       {% unless flag?(:release) %}
-        abort "GC: allocated size must be a multiple of sizeof(Void*)" unless size % WORD_SIZE == 0
-        abort "GC: allocated size must be smaller than 8KB" unless size < LARGE_OBJECT_SIZE
+        abort "GC: allocated size must be a multiple of sizeof(Void*)" unless object_size % WORD_SIZE == 0
+        abort "GC: allocated size must be smaller than 8KB" unless object_size < LARGE_OBJECT_SIZE
       {% end %}
 
       loop do
         # try to allocate into current block
         if @block
-          object = try_allocate_small(size)
+          object = try_allocate_small(object_size)
 
           unless object.null?
             GC.debug "malloc small size=%u object=%lu ptr=%lu stop=%lu",
-              size, object.as(Void*), object.value.mutator_address, object.as(Void*) + size
+              object_size, object.as(Void*), object.value.mutator_address, object.as(Void*) + object_size
 
             return object.value.mutator_address
           end
@@ -86,8 +86,22 @@ module GC
       end
     end
 
-    def allocate_large(object_size : SizeT) : Void*
-      abort "GC: large object space isn't implemented (>= 8KB)"
+    # Allocates a large objects (8KB and more).
+    #
+    # Large allocations are slower than smaller allocations, because they must
+    # always reach to the `GlobalAllocator` (which will eventually require sync).
+    def allocate_large(size : SizeT) : Void*
+      {% unless flag?(:release) %}
+        abort "GC: allocated size must be a multiple of sizeof(Void*)" unless size % WORD_SIZE == 0
+        abort "GC: allocated size must be at least 8KB" unless size >= LARGE_OBJECT_SIZE
+      {% end %}
+
+      object = @global_allocator.value.allocate_large(size).as(Object*)
+
+      GC.debug "malloc large size=%u object=%lu ptr=%lu stop=%lu",
+        size, object.as(Void*), object.value.mutator_address, object.as(Void*) + size
+
+      object.value.mutator_address
     end
 
     # Initializes `@cursor` and `@limit` for a newly fetched block from the

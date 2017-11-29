@@ -1,3 +1,5 @@
+require "./lib_c"
+
 module GC
   protected def self.round_to_next_multiple(size, multiple)
     (size + multiple - 1) / multiple * multiple

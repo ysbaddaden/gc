@@ -85,8 +85,10 @@ module GC
         unless pointer.null?
           # GC.debug "mark_from_region cursor=%lu value=%lu", cursor, pointer
 
-          if @global_allocator.value.in_heap?(pointer)
+          if @global_allocator.value.in_small_heap?(pointer)
             mark_object(pointer)
+          elsif @global_allocator.value.in_large_heap?(pointer)
+            mark_large_object(pointer)
           end
         end
 
@@ -176,6 +178,11 @@ module GC
       # conservative collector: scan the object for heap pointers
       bottom = object.as(Void*) + object.value.size
       mark_from_region(object.value.mutator_address, bottom)
+    end
+
+    # TODO: Collector#mark_large_object
+    private def mark_large_object(pointer : Void*)
+      abort "GC: marking large objects isn't implemented"
     end
 
     # Iterates the stack of all fibers, except for the stack of the current

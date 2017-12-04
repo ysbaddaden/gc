@@ -13,45 +13,60 @@ class Fiber
 end
 
 module GC
-  struct Collector
-    # TODO: there should be many local allocators, and they should be associated to threads instead.
+  class Collector
+    # TODO: there should be many local allocators, and they should be attached to threads.
     # OPTIMIZE: consider having a pool of threads to visit stacks & mark objects in parallel
 
+    @fiber : Fiber
+    @pending : Fiber?
+
     def initialize(@global_allocator : GlobalAllocator*, @local_allocator : LocalAllocator*)
-    end
-
-    # Collects memory, in a stop the world fashion.
-    def collect
-      # TODO: synchronize & prevent any allocation while the collector is running!
-
-      fiber = Fiber.current
-
       # We collect in a new fiber, so the stack bottom of the current fiber will
       # be correct and CPU registers saved to the stack.
       #
       # This doesn't apply to the new fiber, since the garbage collector doesn't
       # use itself to allocate memory, so this fiber's stack doesn't have any
       # references to heap memory (and will be skipped entirely).
-      spawn do
-        GC.debug ""
+      @fiber = spawn(name: "IMMIX_GC_COLLECTOR") { run_collector }
+    end
 
-        # unmark objects in small and large object spaces:
-        unmark_all
+    private def run_collector
+      Scheduler.reschedule
 
-        # TODO: implement a precise stack iterator with LLVM GC / STACK MAPS
-        #       allowing to implement moving/compact/defragment IMMIX optimizations
-        each_stack do |top, bottom|
-          mark_from_region(top, bottom)
+      loop do
+        collect_once
+
+        if pending = @pending
+          @pending = nil
+          pending.resume
+        else
+          Scheduler.reschedule
         end
+      end
+    end
 
-        # recycle blocks then reset allocator cursors:
-        @global_allocator.value.recycle
-        @local_allocator.value.reset
+    # Collects memory, in a stop the world fashion.
+    def collect
+      # TODO: synchronize & prevent any allocation while the collector is running!
+      @pending = Fiber.current
+      @fiber.resume
+    end
 
-        fiber.resume
+    private def collect_once
+      GC.debug ""
+
+      # unmark objects in small and large object spaces:
+      unmark_all
+
+      # TODO: implement a precise stack iterator with LLVM GC / STACK MAPS
+      #       allowing to implement moving/compact/defragment IMMIX optimizations
+      each_stack do |top, bottom|
+        mark_from_region(top, bottom)
       end
 
-      Scheduler.reschedule
+      # recycle blocks then reset allocator cursors:
+      @global_allocator.value.recycle
+      @local_allocator.value.reset
     end
 
     private def unmark_all

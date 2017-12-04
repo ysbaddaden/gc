@@ -67,7 +67,7 @@ module GC
 
       @chunks = LinkedList(Chunk).new
       chunk = large_start.as(Chunk*)
-      chunk.value.initialize(initial_size, Chunk::Flag::Free)
+      chunk.value.initialize(initial_size - CHUNK_HEADER_SIZE, Chunk::Flag::Free)
       @chunks << chunk
     end
 
@@ -93,6 +93,19 @@ module GC
 
     def each_chunk
       @chunks.each { |chunk| yield chunk }
+    end
+
+    def block_for(pointer : Void*) : Block*
+      block = Pointer(Void).new(pointer.address & BLOCK_SIZE_IN_BYTES_INVERSE_MASK).as(Block*)
+
+      #{% if flag?(:release) %}
+        return block
+      #{% else %}
+      #  each_block do |b|
+      #    return block if b == block
+      #  end
+      #  abort "GC: invalid block"
+      #{% end %}
     end
 
     # Request the next available block to allocate objects to. First tries to
@@ -146,7 +159,7 @@ module GC
       return object unless object.null?
 
       # 4. still no space? grow large heap
-      grow_large(object_size + sizeof(Chunk))
+      grow_large(object_size + CHUNK_HEADER_SIZE)
 
       # 5. allocate:
       object = try_allocate_large(object_size)
@@ -156,30 +169,37 @@ module GC
       abort "GC: failed to allocate large object"
     end
 
-    def try_allocate_large(size : SizeT) : Object*
-      i = 0
-
+    private def try_allocate_large(size : SizeT) : Object*
       @chunks.each do |chunk|
         next unless chunk.value.free?
 
         if size == chunk.value.size
+          # fits chunk perfectly
           chunk.value.flag = Chunk::Flag::Allocated
           chunk.value.size = size
           return chunk.value.object_address
 
         elsif size < chunk.value.size
+          # fits within chunk
           remaining = chunk.value.size - size
-          free = (chunk.as(Void*) + sizeof(Chunk) + size).as(Chunk*)
+          free = (chunk.value.object_address.as(Void*) + size).as(Chunk*)
           free.value.initialize(remaining, Chunk::Flag::Free)
           @chunks.insert(free, after: chunk)
 
           chunk.value.flag = Chunk::Flag::Allocated
           chunk.value.size = size
+          chunk.value.unmark
           return chunk.value.object_address
         end
       end
 
       Pointer(Object).null
+    end
+
+    def deallocate_large(pointer : Void*) : Nil
+      # TODO: free object from large-object-space
+      # chunk = (pointer - sizeof(Chunk)).as(Chunk*)
+      # chunk.value.flag = Chunk::Flag::Free
     end
 
     def recycle : Nil

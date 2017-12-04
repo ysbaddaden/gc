@@ -46,7 +46,7 @@ module GC
       assert o_medium1_orig.value.marked?, "expected to mark object with referenced inner pointer (but no direct reference)"
       assert o_medium1.value.marked?, "expected to mark medium-sized object (with reference)"
 
-      block = Block.from(small1)
+      block = @ga.block_for(small1)
       assert block.value.marked?
       assert block.value.line_header_at(0).value.marked?
     end
@@ -63,8 +63,8 @@ module GC
       # allocate one object to second block:
       m2 = @la.allocate_small(SizeT.new(LINE_SIZE))
 
-      b1 = Block.from(m1)
-      b2 = Block.from(m2)
+      b1 = @ga.block_for(m1)
+      b2 = @ga.block_for(m2)
       refute_equal b1, b2
 
       assert b1.value.line_header_at(0).value.contains_object_header?
@@ -119,8 +119,8 @@ module GC
       m5 = @la.allocate_small(SizeT.new(512 - sizeof(Object)))
       m5 = @la.allocate_small(SizeT.new(256 - sizeof(Object)))
 
-      b1 = Block.from(m1)
-      b2 = Block.from(m5)
+      b1 = @ga.block_for(m1)
+      b2 = @ga.block_for(m5)
 
       @collector.collect
 
@@ -164,10 +164,10 @@ module GC
       # 4th block (heap grow, current allocator cursor):
       m6 = @la.allocate_small(SizeT.new(8128 - sizeof(Object)))
 
-      b1 = Block.from(m0); m0 = Pointer(Void).null
-      b2 = Block.from(m1)
-      b3 = Block.from(m5)
-      b4 = Block.from(m6)
+      b1 = @ga.block_for(m0); m0 = Pointer(Void).null
+      b2 = @ga.block_for(m1)
+      b3 = @ga.block_for(m5)
+      b4 = @ga.block_for(m6)
 
       @collector.collect
 
@@ -178,15 +178,15 @@ module GC
 
       # exhaust recyclable blocks:
       m7 = @la.allocate_small(SizeT.new(8128) - sizeof(Object))
-      assert_equal b3, Block.from(m7), "expected to allocate into recycled block (exhausting recyclable block)"
+      assert_equal b3, @ga.block_for(m7), "expected to allocate into recycled block (exhausting recyclable block)"
 
       m8 = @la.allocate_small(SizeT.new(8128) - sizeof(Object))
       m8 = @la.allocate_small(SizeT.new(8128) - sizeof(Object))
-      assert_equal b4, Block.from(m8), "expected to allocate into recycled block (exhausting another recyclable block)"
+      assert_equal b4, @ga.block_for(m8), "expected to allocate into recycled block (exhausting another recyclable block)"
 
       m8 = @la.allocate_small(SizeT.new(8128) - sizeof(Object))
       m8 = @la.allocate_small(SizeT.new(8128) - sizeof(Object))
-      assert_equal b1, Block.from(m8), "expected to allocate into free block (exhausted recyclable blocks)"
+      assert_equal b1, @ga.block_for(m8), "expected to allocate into free block (exhausted recyclable blocks)"
 
       # exhaust free blocks:
       m8 = @la.allocate_small(SizeT.new(8128) - sizeof(Object))
@@ -195,7 +195,7 @@ module GC
 
       # grow memory: allocate in new block
       m8 = @la.allocate_small(SizeT.new(8128) - sizeof(Object))
-      refute_equal b1, Block.from(m8), "expected to allocate into new block (exhausted free blocks)"
+      refute_equal b1, @ga.block_for(m8), "expected to allocate into new block (exhausted free blocks)"
     end
 
     # Scenario 5 (conservative marking):
@@ -224,7 +224,7 @@ module GC
 
       @collector.collect
 
-      b1 = Block.from(first)
+      b1 = @ga.block_for(first)
       assert b1.value.line_header_at(0).value.marked?  # first, second
       refute b1.value.line_header_at(1).value.marked?  # second (span)
       refute b1.value.line_header_at(2).value.marked?  # hole
@@ -330,7 +330,7 @@ module GC
       object = (@ga.@heap_start + LINE_SIZE).as(Object*)
       assert object.value.marked?
 
-      block = Block.from(object.as(Void*))
+      block = @ga.block_for(object.as(Void*))
       assert block.value.marked?
 
       LINE_COUNT.times do |i|

@@ -67,8 +67,6 @@ module GC
             # GC.debug "unmark block=%lu object=%lu", block, object.as(Void*)
             object.value.unmark
           end
-
-          line_header += 1
         end
       end
 
@@ -104,8 +102,7 @@ module GC
     private def mark_small(pointer : Void*) : Nil
       GC.debug "find object ptr=%lu", pointer
 
-      # block = @global_allocator.value.block_for(pointer)
-      block = Block.from(pointer)
+      block = @global_allocator.value.block_for(pointer)
 
       # find the line the object is allocated to —this may be an inner pointer,
       # and the object may span one (small) or many (medium) lines:
@@ -118,7 +115,7 @@ module GC
           GC.debug "failed to find allocation line for heap pointer, line_index=%d", line_index
           return
         end
-        line_header = block.value.line_header_at(line_index)
+
         if line_header.value.contains_object_header?
           if i == 0 && block.value.line_at(line_index) + line_header.value.offset > pointer
             # the line the pointer is in has an object header but it's located
@@ -127,13 +124,15 @@ module GC
             break
           end
         end
+
         line_index -= 1
+        line_header = block.value.line_header_at(line_index)
       end
 
       # find the object (somewhere in line):
-      object = uninitialized Object*
       line_offset = line_header.value.offset
       line = block.value.line_at(line_index)
+      object = uninitialized Object*
 
       loop do
         cursor = line + line_offset

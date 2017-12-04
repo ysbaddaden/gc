@@ -4,14 +4,11 @@ require "./local_allocator"
 require "./collector"
 
 module GC
-  @@global_allocator : GlobalAllocator
-  @@collector : Collector
-  @@local_allocator : LocalAllocator
+  @@global_allocator = GlobalAllocator.new(SizeT.new(BLOCK_SIZE) * 128)
+  @@local_allocator = LocalAllocator.new(pointerof(@@global_allocator))
+  @@collector = Collector.new(pointerof(@@global_allocator), pointerof(@@local_allocator))
 
-  def self.init(initial_size : Int = DEFAULT_INITIAL_SIZE)
-    @@global_allocator = GlobalAllocator.new(SizeT.new(initial_size))
-    @@local_allocator = LocalAllocator.new(pointerof(@@global_allocator))
-    @@collector = Collector.new(pointerof(@@global_allocator), pointerof(@@local_allocator))
+  def self.init
   end
 
   def self.enable
@@ -25,11 +22,11 @@ module GC
   end
 
   def self.malloc(size : SizeT) : Void*
-    object_size = round_to_next_multiple(size, WORD_SIZE)
-    if object_size < LARGE_BLOCK_SIZE
-      @@local_allocator.allocate_small(object_size)
+    size = round_to_next_multiple(size, WORD_SIZE)
+    if size < (LARGE_OBJECT_SIZE - sizeof(Object))
+      @@local_allocator.allocate_small(size)
     else
-      @@local_allocator.allocate_large(object_size)
+      @@local_allocator.allocate_large(size)
     end
   end
 
@@ -39,19 +36,57 @@ module GC
     malloc(size)
   end
 
+  # Changes the size of a memory allocation. The original pointer must have been
+  # allocated using `#malloc` or `#malloc_atomic` or reallocated with
+  # `#realloc`. The new memory allocation will be initialized with the data from
+  # the previous pointer (up to the minimum of the old or new size).
+  #
+  # Returns a pointer to the new memory allocation; the original pointer musn't
+  # be accessed or referenced anymore.
   def self.realloc(pointer : Void*, size : SizeT) : Void*
-    raise "GC: pointer reallocation isn't implemented"
+    # realloc(3) compatibility
+    return malloc(size) if pointer.null?
+
+    new_size = round_to_next_multiple(size, WORD_SIZE)
+
+    # get original object (for actual allocation size)
+    object = (pointer - sizeof(Object)).as(Object*)
+    original_size = object.value.allocation_size
+
+    # downsize? do nothing
+    return pointer if new_size <= original_size
+
+    # malloc + copy data:
+    new_pointer = malloc(size)
+    pointer.copy_to(new_pointer, original_size)
+
+    # free large object:
+    if original_size >= LARGE_OBJECT_SIZE
+      @@global_allocator.deallocate_large(pointer)
+    end
+
+    new_pointer
   end
 
-  # def self.free(pointer : Void*)
-  # end
+  def self.free(pointer : Void*) : Nil
+    if @@global_allocator.in_large_heap?(pointer)
+      @@global_allocator.deallocate_large(pointer)
+    end
+  end
 
   def self.collect
     @@collector.collect
   end
 
   def self.add_finalizer(object : Reference)
-    raise "GC: finalizers aren't implemented"
+    add_finalizer_impl(object)
+  end
+
+  def self.add_finalizer_impl(object : T) forall T
+    LibC.printf "WARNING: Immix GC doesn't support finalizers (yet)\n"
+    # proc = ->(obj : Void*) { Box(T).unbox(obj).finalize }
+    # @@global_allocator.register_finalizer(Box(T).box(object), proc)
+    nil
   end
 
   def self.add_finalizer(any)

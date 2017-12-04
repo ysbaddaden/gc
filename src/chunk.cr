@@ -1,4 +1,8 @@
+require "./object"
+
 module GC
+  CHUNK_HEADER_SIZE = sizeof(Chunk) - sizeof(Object)
+
   struct Chunk
     enum Flag
       Free
@@ -11,18 +15,24 @@ module GC
 
     def initialize(size : SizeT, @flag : Flag)
       @next = Pointer(Chunk).null
-      @object = Object.new(size - sizeof(Chunk), Object::Type::Large)
+      @object = Object.new(size, Object::Type::Large)
     end
 
     delegate free?, allocated?, to: @flag
-    delegate marked?, mark, unmark, size, to: @object
+    delegate marked?, mark, unmark, to: @object
 
+    # Reports the free available size, or the allocated object's size.
+    def size
+      @object.size
+    end
+
+    # Sets the free available size, or the allocated object's size.
     def size=(value : SizeT)
       @object.size = value
     end
 
     def includes?(pointer : Void*) : Bool
-      object_address.as(Void*) < pointer < object_address.as(Void*) + size
+      mutator_address <= pointer < object_address.as(Void*) + size
     end
 
     def object_address : Object*

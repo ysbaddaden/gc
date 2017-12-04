@@ -17,12 +17,19 @@ module GC
 
     delegate standard?, large?, to: @type
 
+    # Returns the object size including its header. Use `#allocation_size` to
+    # get the available size.
     def size : SizeT
       @size
     end
 
     def size=(value : SizeT) : SizeT
       @size = value
+    end
+
+    # Returns the allocation available size.
+    def allocation_size : SizeT
+      @size - sizeof(Object)
     end
 
     def marked? : Bool

@@ -91,12 +91,14 @@ module GC
     # Large allocations are slower than smaller allocations, because they must
     # always reach to the `GlobalAllocator` (which will eventually require sync).
     def allocate_large(size : SizeT) : Void*
+      object_size = size + sizeof(Object)
+
       {% unless flag?(:release) %}
         abort "GC: allocated size must be a multiple of sizeof(Void*)" unless size % WORD_SIZE == 0
         abort "GC: allocated size must be at least 8KB" unless size >= LARGE_OBJECT_SIZE
       {% end %}
 
-      object = @global_allocator.value.allocate_large(size).as(Object*)
+      object = @global_allocator.value.allocate_large(object_size).as(Object*)
 
       GC.debug "malloc large size=%u object=%lu ptr=%lu stop=%lu",
         size, object.as(Void*), object.value.mutator_address, object.as(Void*) + size

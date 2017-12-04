@@ -12,10 +12,12 @@ module GC
     def test_initialize
       @object.value.initialize(SizeT.new(16), Object::Type::Standard)
       assert_equal 16, @object.value.size
+      assert_equal 16 - sizeof(Object), @object.value.allocation_size
       assert @object.value.standard?
 
       @object.value.initialize(SizeT.new(16384), Object::Type::Large)
       assert_equal 16384, @object.value.size
+      assert_equal 16384 - sizeof(Object), @object.value.allocation_size
       assert @object.value.large?
     end
 

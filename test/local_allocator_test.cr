@@ -95,15 +95,16 @@ module GC
       c1 = (a1 - sizeof(Chunk)).as(Chunk*)
       c2 = (a2 - sizeof(Chunk)).as(Chunk*)
       c3 = (a3 - sizeof(Chunk)).as(Chunk*)
+      c4 = (a3 + 49056).as(Chunk*)
 
       # objects are bump allocated
       assert_equal a1 + 8192 + sizeof(Chunk), a2
       assert_equal a2 + 8192 + sizeof(Chunk), a3
 
       # objects are initialized
-      assert_equal 8192, o1.value.size
-      assert_equal 8192, o2.value.size
-      assert_equal 49056, o3.value.size
+      assert_equal 8192 + sizeof(Object), o1.value.size
+      assert_equal 8192 + sizeof(Object), o2.value.size
+      assert_equal 49056 + sizeof(Object), o3.value.size
 
       assert o1.value.large?
       assert o2.value.large?
@@ -117,10 +118,12 @@ module GC
       assert c1.value.allocated?
       assert c2.value.allocated?
       assert c3.value.allocated?
+      assert c4.value.free?
 
       assert_equal c2, c1.value.next
       assert_equal c3, c2.value.next
-      assert_equal Pointer(Chunk).null, c3.value.next
+      assert_equal c4, c3.value.next
+      assert_equal Pointer(Chunk).null, c4.value.next
 
       # force large heap to grow
       a4 = la.allocate_large(SizeT.new(8192))

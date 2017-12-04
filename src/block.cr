@@ -39,16 +39,12 @@ module GC
 
     # @lines = uninitialized Line[LINE_COUNT]
 
-    # Returns a pointer to the block a *pointer* points in.
-    def self.from(pointer : Void*) : Block*
-      Pointer(Void).new(pointer.address & BLOCK_SIZE_IN_BYTES_INVERSE_MASK).as(Block*)
-    end
-
     def initialize
       @marked = false
       @flag = Flag::Free
       @first_free_line_index = 0_i16
       @next = Pointer(Block).null
+      LibC.memset(line_headers, 0, sizeof(LineHeader) * LINE_COUNT)
     end
 
     delegate free?, recyclable?, unavailable?, to: @flag
@@ -103,9 +99,9 @@ module GC
     end
 
     # Iterates each `Object` in a `Line`. Doesn't cross to another line.
-    #
-    # NOTE: assumes the line does contain an object header!
     def each_object_at(line_index : Int32, line_header : LineHeader* = line_header_at(index)) : Nil
+      return unless line_header.value.contains_object_header?
+
       line = line_at(line_index)
       offset = line_header.value.offset
 

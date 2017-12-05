@@ -13,7 +13,8 @@ all pointers perfectly. I.e. implement a fully precise collector.
 It otherwise implements most of Immix (except for overflow allocations) for
 small objects (less than 256 bytes) and medium objects (more than 256 bytes),
 with a single GlobalAllocator and a per-thread LocalAllocator (thought only one
-LocalAllocator is supported).
+LocalAllocator is supported). Implements a linked list of allocations for large
+objets (8192 bytes and more) that aren't covered by Immix.
 
 This GC shall eventually be improved to allow a precise marking of identified
 objects in the HEAP, while still relying on a conservative stack iterator. It
@@ -21,8 +22,6 @@ may eventually be improved to allow a precise iteration of stacks.
 
 
 ## WARNING
-
-This GC has NEVER BEEN TRIED!
 
 - It's a WORK IN PROGRESS.
 
@@ -34,27 +33,15 @@ This GC has NEVER BEEN TRIED!
   written by a newbie. It MUST go throught intensive Valgrind sessions of stress
   test suites.
 
-- You can't allocate objects larger than 8191 bytes (i.e. you can't use `IO`).
-
-- In fact `src/gc.cr` is merely a scaffold and probably doesn't even compile.
-
 
 ## TODO
 
-1. Large Object Space.
-
-  Immix doesn't describe the Large Object Space (LOS) for objects larger than 8
-  kilobytes. The LOS is thus unimplemented and undesigned, but will probably be
-  bump allocated in a HEAP with hole identifications while trying to always
-  allocate objects at the lowest address, in order to avoid growing the HEAP and
-  leaving holes.
-
-2. Overflow Allocations (Immix optimization)
+1. Overflow Allocations (Immix optimization)
 
   If we can't allocate a medium object (larger than 256 bytes) in a block, the
   object should be allocated in an overflow block (one per LocalAllocator).
 
-3. Object Finalizers.
+2. Object Finalizers.
 
   Crystal classes may have a finalizer (e.g. to free external pointers, close
   some IO resources, ...) that must be called when an object is collected.
@@ -74,7 +61,7 @@ This GC has NEVER BEEN TRIED!
   order, that would have to be identified (we can't collect/finalize B if A
   references it, because A's finalizer may require B).
 
-4. Multithreaded Event Loop support.
+3. Multithreaded Event Loop support.
 
   One LocalAllocator should be created for each thread running Fibers, to avoid
   too many synchronization until its required, for example when accessing the
@@ -91,13 +78,14 @@ This GC has NEVER BEEN TRIED!
 
   The recycling phase requires all fibers to be pending.
 
-5. Precise Collector:
-  1. precise marking of identified objects;
-  2. precise iteration of stacks (using LLVM GC intrisincs & stack maps).
+4. Precise Collector:
+    1. precise marking of identified objects;
+    2. precise iteration of stacks (using LLVM GC intrinsics & stack maps).
 
-6. Defragmentation (IMMIX, requires precise collector).
+5. Defragmentation (IMMIX, requires precise collector).
+
 
 ## Credits
 
-Some implementation details are loosely based on ImmixGC from the scala-native
-project —mostly how the heap as well as blocks and lines metadata are handled.
+Some implementation details are based on ImmixGC from the scala-native
+project; for example how the heap, blocks and lines metadata are handled.

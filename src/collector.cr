@@ -17,6 +17,7 @@ module GC
     # TODO: there should be many local allocators, and they should be attached to threads.
     # OPTIMIZE: consider having a pool of threads to visit stacks & mark objects in parallel
 
+    @sections : LibC::GcImmixLdSymbols
     @fiber : Fiber
     @pending : Fiber?
 
@@ -28,6 +29,8 @@ module GC
       # use itself to allocate memory, so this fiber's stack doesn't have any
       # references to heap memory (and will be skipped entirely).
       @fiber = spawn(name: "IMMIX_GC_COLLECTOR") { run_collector }
+
+      LibC.gc_immix_get_ld_symbols(out @sections)
     end
 
     private def run_collector
@@ -60,9 +63,13 @@ module GC
 
       # TODO: implement a precise stack iterator with LLVM GC / STACK MAPS
       #       allowing to implement moving/compact/defragment IMMIX optimizations
-      each_stack do |top, bottom|
-        mark_from_region(top, bottom)
-      end
+
+      # mark constants (DATA + BSS sections):
+      mark_from_region(@sections.data_start, @sections.data_end)
+      mark_from_region(@sections.bss_start, @sections.bss_end)
+
+      # mark variables (fiber stacks, registers):
+      each_stack { |top, bottom| mark_from_region(top, bottom) }
 
       # recycle blocks then reset allocator cursors:
       @global_allocator.value.recycle

@@ -3,6 +3,7 @@ require "./object"
 module GC
   CHUNK_HEADER_SIZE = sizeof(Chunk) - sizeof(Object)
 
+  @[Extern]
   struct Chunk
     enum Flag
       Free

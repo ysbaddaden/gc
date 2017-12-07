@@ -56,9 +56,11 @@ module GC
       refute lh1.value.contains_object_header?
 
       # first object on line #1 (with offset):
-      a2 = la.allocate_small(SizeT.new(64))
+      a3 = la.allocate_small(SizeT.new(64))
       assert lh1.value.contains_object_header?
-      assert_equal 56, lh1.value.offset
+
+      offset = (32 + 248 + sizeof(Object) * 2) % LINE_SIZE
+      assert_equal offset, lh1.value.offset
     end
 
     def test_allocate_small_zeroes_next_object_size_on_same_line
@@ -83,10 +85,12 @@ module GC
     def test_allocate_large
       la = LocalAllocator.new(pointerof(@ga))
 
+      remaining = LINE_SIZE * LINE_COUNT - 8192 * 2 - sizeof(Object) * 3
+
       # allocate large objects (fills large heap)
       a1 = la.allocate_large(SizeT.new(8192))
       a2 = la.allocate_large(SizeT.new(8192))
-      a3 = la.allocate_large(SizeT.new(49056))
+      a3 = la.allocate_large(SizeT.new(remaining))
 
       o1 = (a1 - sizeof(Object)).as(Object*)
       o2 = (a2 - sizeof(Object)).as(Object*)
@@ -95,7 +99,7 @@ module GC
       c1 = (a1 - sizeof(Chunk)).as(Chunk*)
       c2 = (a2 - sizeof(Chunk)).as(Chunk*)
       c3 = (a3 - sizeof(Chunk)).as(Chunk*)
-      c4 = (a3 + 49056).as(Chunk*)
+      c4 = (a3 + remaining).as(Chunk*)
 
       # objects are bump allocated
       assert_equal a1 + 8192 + sizeof(Chunk), a2
@@ -104,7 +108,7 @@ module GC
       # objects are initialized
       assert_equal 8192 + sizeof(Object), o1.value.size
       assert_equal 8192 + sizeof(Object), o2.value.size
-      assert_equal 49056 + sizeof(Object), o3.value.size
+      assert_equal remaining + sizeof(Object), o3.value.size
 
       assert o1.value.large?
       assert o2.value.large?
@@ -130,7 +134,7 @@ module GC
       o4 = (a4 - sizeof(Object)).as(Object*)
       c4 = (a4 - sizeof(Chunk)).as(Chunk*)
 
-      assert_equal a3 + 49056 + sizeof(Chunk), a4
+      assert_equal a3 + remaining + sizeof(Chunk), a4
       assert c4.value.allocated?
 
       # find last chunk (free space)

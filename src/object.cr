@@ -1,6 +1,7 @@
 require "./constants"
 
 module GC
+  @[Extern]
   struct Object
     enum Type : UInt8
       Standard
@@ -9,7 +10,7 @@ module GC
 
     @size : SizeT
     @type : Type
-    @marked = 0_u8
+    @marked : UInt8
 
     def initialize(@size : SizeT, @type : Type)
       @marked = 0_u8

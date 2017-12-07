@@ -117,8 +117,8 @@ module GC
     end
 
     # Returns the index for a Line in the block given into the line.
-    def line_index(line : Void*)
-      (line.address - start.address) / LINE_SIZE
+    def line_index(line : Void*) : Int32
+      (line.address - start.address).to_i / LINE_SIZE
     end
 
     # Pointer to the `LineHeader` for a `Line` pointer.

@@ -1,0 +1,5 @@
+*.a
+*.o
+/build
+/test/greatest.h
+/test/greenest

@@ -51,12 +51,23 @@ inline void GlobalAllocator_GrowLarge(GlobalAllocator *self, size_t increment) {
     ChunkList_push(&self->chunk_list, chunk);
 }
 
+inline void GlobalAllocator_updateLargeCursor(GlobalAllocator *self, Chunk *chunk) {
+    Chunk *next = chunk->next;
+    if (next == NULL) {
+        self->large_cursor = self->chunk_list.first;
+    } else {
+        self->large_cursor = next;
+    }
+}
+
 inline void* GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size_t size, int atomic) {
     size_t chunk_size = size + sizeof(Chunk);
     size_t object_size = size + sizeof(Object);
 
-    Chunk *chunk = self->chunk_list.first;
-    while (chunk != NULL) {
+    Chunk *start = self->large_cursor;
+    Chunk *chunk = start;
+
+    while (1) {
         if (!chunk->allocated) {
             size_t available = chunk->object.size;
 
@@ -65,6 +76,10 @@ inline void* GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size_t size
                 // allocate
                 chunk->allocated = 1;
                 chunk->object.atomic = atomic;
+
+                // update cursor
+                GlobalAllocator_updateLargeCursor(self, chunk);
+
                 return Chunk_mutatorAddress(chunk);
             }
 
@@ -85,16 +100,27 @@ inline void* GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size_t size
                 // allocate
                 chunk->allocated = 1;
                 chunk->object.atomic = atomic;
+
+                // update cursor
+                GlobalAllocator_updateLargeCursor(self, chunk);
+
                 return Chunk_mutatorAddress(chunk);
             }
         }
 
         // try next chunk
         chunk = chunk->next;
+
+        if (chunk == NULL) {
+            chunk = self->chunk_list.first;
+        }
+        if (chunk == start) {
+            // failed
+            return NULL;
+        }
     }
 
     // unreachable
-    return NULL;
 }
 
 void* GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int atomic) {

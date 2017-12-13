@@ -1,11 +1,6 @@
 #include "greatest.h"
 #include "../immix.h"
 
-TEST test_GC_init() {
-    GC_init(BLOCK_SIZE * 2); // 64 KB
-    PASS();
-}
-
 TEST test_GC_malloc() {
     void *pointer = GC_malloc(128);
 
@@ -77,6 +72,9 @@ TEST test_GC_realloc() {
     void *ptr6 = GC_realloc(ptr5, 0);
     ASSERT(ptr6 == NULL);
 
+    obj = (Object *)((char *)ptr5 - sizeof(Object));
+    ASSERT_EQ_FMT(sizeof(Object) + 128, obj->size, "%zu");
+
     PASS();
 }
 
@@ -120,7 +118,6 @@ TEST test_grows_memory() {
 }
 
 SUITE(ImmixSuite) {
-    RUN_TEST(test_GC_init);
     RUN_TEST(test_GC_malloc);
     RUN_TEST(test_GC_malloc_atomic);
     RUN_TEST(test_GC_realloc);

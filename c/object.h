@@ -10,10 +10,14 @@ typedef struct {
     uint8_t atomic;
 } Object;
 
-inline void Object_init(Object* object) {
-  object->size = 0;
-  object->marked = 0;
-  object->atomic = 0;
+static inline void Object_init(Object* object) {
+    object->size = 0;
+    object->marked = 0;
+    object->atomic = 0;
+}
+
+static inline void* Object_mutatorAddress(Object* object) {
+    return (char *)object + sizeof(Object);
 }
 
 #endif

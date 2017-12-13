@@ -1,15 +1,16 @@
 .POSIX:
 
-CFLAGS = -g -fPIC -O3 -Wall -pedantic -std=c99 -D_BSD_SOURCE $(CUSTOM)
+CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99 -D_BSD_SOURCE
 LDFLAGS = $(PWD)/immix.a -lm
 
 OBJECTS = build/immix.o \
-		  build/global_allocator.o
+		  build/global_allocator.o \
+		  build/collector.o
 
 all: immix.a
 
 immix.a: $(OBJECTS)
-	$(AR) -rc immix.a build/immix.o build/global_allocator.o
+	$(AR) -rc immix.a build/immix.o build/global_allocator.o build/collector.o
 
 build/%.o: %.c *.h
 	@mkdir -p build
@@ -23,8 +24,10 @@ setup: phony
 	[ -f test/greenest ] && wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/contrib/greenest -O test/greenest
 	chmod +x test/greenest
 
-test: phony immix.a
+build/test-runner: immix.a test/*.c test/*.h
 	$(CC) -rdynamic $(CFLAGS) -o build/test-runner test/runner.c $(LDFLAGS)
+
+test: phony build/test-runner
 	./build/test-runner | ./test/greenest
 
 phony:

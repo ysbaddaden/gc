@@ -1,4 +1,4 @@
-#include "../config.h"
+#include "config.h"
 
 #include "chunk_list_test.c"
 #include "memory_test.c"

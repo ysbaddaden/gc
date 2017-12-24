@@ -130,11 +130,13 @@ module GC
 
   # :nodoc:
   def self.stack_bottom : Void*
-    {% if flag?(:gnu) %}
-      LibC.__libc_stack_end
-    {% else %}
-      {% raise "GC: unsupported target (only <arch>-linux-gnu is supported)" %}
+    {% if flag?(:linux) %}
+      {% if flag?(:gnu) %}
+        return LibC.__libc_stack_end
+      {% end %}
     {% end %}
+
+    {% raise "GC: unsupported target (only <arch>-linux-gnu is supported)" %}
   end
 
   # :nodoc:

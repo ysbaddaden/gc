@@ -1,6 +1,6 @@
 .POSIX:
 
-CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99
+CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99 -Iinclude
 LDFLAGS = $(PWD)/immix.a -lm
 
 OBJECTS = build/immix.o \
@@ -12,7 +12,7 @@ all: immix.a
 immix.a: $(OBJECTS)
 	$(AR) -rc immix.a build/immix.o build/global_allocator.o build/collector.o
 
-build/%.o: %.c *.h
+build/%.o: src/%.c include/*.h
 	@mkdir -p build
 	$(CC) -c $(CFLAGS) -o $@ $<
 

@@ -1,5 +1,5 @@
 #include "greatest.h"
-#include "../immix.h"
+#include "immix.h"
 
 TEST test_GC_malloc() {
     void *pointer = GC_malloc(128);

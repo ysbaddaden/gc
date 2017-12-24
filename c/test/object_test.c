@@ -1,5 +1,5 @@
 #include "greatest.h"
-#include "../object.h"
+#include "object.h"
 
 TEST test_Object_init() {
     Object object;

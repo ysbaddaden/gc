@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include "greatest.h"
-#include "../chunk_list.h"
+#include "chunk_list.h"
 
 TEST test_Chunk_init() {
     Chunk chunk;

@@ -1,5 +1,5 @@
 #include "greatest.h"
-#include "../memory.h"
+#include "memory.h"
 
 TEST test_mapAndAlign() {
     // mapped memory

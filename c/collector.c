@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include "collector.h"
@@ -22,8 +24,15 @@ void GC_Collector_init(Collector *self, GlobalAllocator *allocator) {
 }
 
 static inline void Collector_unmarkAll(Collector *self) {
-    Chunk *chunk = self->global_allocator->chunk_list.first;
+    Chunk *chunk;
 
+    chunk = self->global_allocator->small_chunk_list.first;
+    while (chunk != NULL) {
+        Chunk_unmark(chunk);
+        chunk = chunk->next;
+    }
+
+    chunk = self->global_allocator->large_chunk_list.first;
     while (chunk != NULL) {
         Chunk_unmark(chunk);
         chunk = chunk->next;
@@ -45,53 +54,49 @@ static inline void Collector_markObject(Collector *self, Object *object) {
     }
 }
 
-static inline Chunk *Collector_findChunk(Collector *self, void *pointer) {
-    Chunk* chunk = self->global_allocator->chunk_list.first;
-
-    while (chunk != NULL) {
-        if (Chunk_contains(chunk, pointer)) {
-            return chunk;
-        }
-        chunk = chunk->next;
+static inline void Collector_markChunk(Collector *self, Chunk *chunk) {
+    if (chunk != NULL && chunk->allocated) {
+        Collector_markObject(self, &chunk->object);
     }
-
-    return NULL;
 }
 
 void GC_Collector_markRegion(Collector *self, void *top, void *bottom, const char *source) {
     DEBUG("GC: mark region top=%p bottom=%p source=%s\n", top, bottom, source);
     assert(top <= bottom);
 
+    ChunkList *small_chunk_list = &self->global_allocator->small_chunk_list;
+    ChunkList *large_chunk_list = &self->global_allocator->large_chunk_list;
+    Chunk *chunk;
+
     void *sp = top;
     while (sp < bottom) {
         // dereference stack pointer's value as heap pointer:
         void *pointer = (void *)(*(uintptr_t *)(sp));
 
-        if (GlobalAllocator_inLargeHeap(self->global_allocator, pointer)) {
-            // search chunk (may be an inner pointer):
-            Chunk *chunk = Collector_findChunk(self, pointer);
-
-            if (chunk == NULL) {
-                DEBUG("GC: failed to find chunk for ptr=%p\n", pointer);
-            } else if (chunk->allocated) {
-                Collector_markObject(self, &chunk->object);
-            }
+        // search chunk for pointer (may be inner pointer):
+        if (GlobalAllocator_inSmallHeap(self->global_allocator, pointer)) {
+            chunk = ChunkList_find(small_chunk_list, pointer);
+            Collector_markChunk(self, chunk);
+        } else if (GlobalAllocator_inLargeHeap(self->global_allocator, pointer)) {
+            chunk = ChunkList_find(large_chunk_list, pointer);
+            Collector_markChunk(self, chunk);
         }
 
+        // try next stack pointer
         sp = (char*)sp + sizeof(void *);
     }
 }
 
 static inline void Collector_sweep(Collector *self) {
-    Chunk* chunk = self->global_allocator->chunk_list.first;
-    while (chunk != NULL) {
-        if (!Chunk_isMarked(chunk)) {
-            DEBUG("GC: free chunk=%p ptr=%p size=%zu\n",
-                    (void *)chunk, Chunk_mutatorAddress(chunk), chunk->object.size);
-            chunk->allocated = 0;
-        }
-        chunk = chunk->next;
-    }
+    ChunkList_sweep(&self->global_allocator->small_chunk_list);
+#ifndef NDEBUG
+    ChunkList_validate(&self->global_allocator->small_chunk_list, self->global_allocator->small_heap_stop);
+#endif
+
+    ChunkList_sweep(&self->global_allocator->large_chunk_list);
+#ifndef NDEBUG
+    ChunkList_validate(&self->global_allocator->large_chunk_list, self->global_allocator->large_heap_stop);
+#endif
 }
 
 void GC_Collector_collect(Collector *self) {

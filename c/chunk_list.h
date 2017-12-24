@@ -26,6 +26,21 @@ static inline void Chunk_init(Chunk *chunk, size_t size) {
     chunk->object.atomic = 0;
 }
 
+// Returns the chunk size, counting the chunk and object metadata and the
+// mutator size.
+static inline int Chunk_size(Chunk *chunk) {
+    return chunk->object.size + CHUNK_HEADER_SIZE;
+}
+
+// Returns the mutator size, counting neither the chunk nor object metadata.
+//static inline int Chunk_mutatorSize(Chunk *chunk) {
+//    return Object_mutatorSize(chunk->object);
+//}
+
+static inline void Chunk_mark(Chunk *chunk) {
+    chunk->object.marked = 1;
+}
+
 static inline void Chunk_unmark(Chunk *chunk) {
     chunk->object.marked = 0;
 }
@@ -102,8 +117,9 @@ static inline void ChunkList_insert(ChunkList *self, Chunk *chunk, Chunk* after)
 static inline Chunk *ChunkList_split(ChunkList *self, Chunk *chunk, size_t size) {
     size_t remaining = chunk->object.size - size;
 
-    // enough space to accomodate new chunk?
     if (remaining < CHUNK_MIN_SIZE) {
+        // not enough space to accomodate a new chunk, the use the whole chunk.
+        // chunk (no resize, no free chunk insertion).
         return NULL;
     }
 
@@ -111,14 +127,106 @@ static inline Chunk *ChunkList_split(ChunkList *self, Chunk *chunk, size_t size)
     chunk->object.size = size;
 
     // insert new chunk (free)
-    Chunk *free = (Chunk *)((char *)chunk + CHUNK_HEADER_SIZE + size);
-    Chunk_init(free, remaining - CHUNK_HEADER_SIZE);
-    ChunkList_insert(self, free, chunk);
+    Chunk *free_chunk = (Chunk *)((char *)chunk + CHUNK_HEADER_SIZE + size);
+    Chunk_init(free_chunk, remaining - CHUNK_HEADER_SIZE);
+    ChunkList_insert(self, free_chunk, chunk);
 
-    DEBUG("GC: insert chunk=%p previous=%p next=%p size=%zu\n",
-            (void *)free, (void *)chunk, (void *)free->next, free->object.size);
+    DEBUG("GC: split chunk=%p [size=%zu] free=%p [size=%zu] next=%p\n",
+            (void *)chunk, chunk->object.size,
+            (void *)free_chunk, free_chunk->object.size,
+            (void *)free_chunk->next);
 
-    return free;
+    assert(((char *)chunk + CHUNK_HEADER_SIZE + size) == ((char *)free_chunk));
+
+    if (free_chunk->next != NULL) {
+        assert(((char *)free_chunk + remaining) == ((char *)(free_chunk->next)));
+    }
+
+    return free_chunk;
+}
+
+// Iterates the list in search of a chunk containing the pointer.
+static inline Chunk *ChunkList_find(ChunkList *self, void *pointer) {
+    Chunk* chunk = self->first;
+
+    while (chunk != NULL) {
+        if (Chunk_contains(chunk, pointer)) {
+            return chunk;
+        }
+        chunk = chunk->next;
+    }
+
+    DEBUG("GC: failed to find large chunk for ptr=%p\n", pointer);
+
+    return NULL;
+}
+
+static inline char *ChunkList_limit(ChunkList *self) {
+    if (self->last == NULL) {
+        return NULL;
+    }
+    return (char *)self->last + Chunk_size(self->last);
+}
+
+static inline void ChunkList_merge(ChunkList *self, Chunk *chunk, Chunk *limit, size_t count) {
+    size_t size;
+    char *stop;
+
+    if (limit == NULL) {
+        stop = ChunkList_limit(self);
+    } else {
+        stop = (char *)limit;
+    }
+    size = (size_t)(stop - (char *)chunk) - CHUNK_HEADER_SIZE;
+
+    DEBUG("GC: merge chunk=%p size=%zu next=%p new_size=%zu\n",
+            (void *)chunk, chunk->object.size,
+            (void *)limit, size);
+    assert(size > chunk->object.size);
+
+    chunk->next = limit;
+    chunk->object.size = size;
+
+    if (limit == NULL) {
+        self->last = chunk;
+    }
+    self->size = self->size - count;
+}
+
+// Iterates the list and deallocates any chunk whose chunk hasn't been marked.
+static inline void ChunkList_sweep(ChunkList *self) {
+    Chunk *chunk = self->first;
+
+    while (chunk != NULL) {
+        if (Chunk_isMarked(chunk)) {
+            // chunk is marked: keep allocation
+            DEBUG("GC: keep chunk=%p ptr=%p size=%zu\n",
+                    (void *)chunk, Chunk_mutatorAddress(chunk), Object_size(&chunk->object));
+            chunk = chunk->next;
+        } else {
+            DEBUG("GC: free chunk=%p ptr=%p size=%zu\n",
+                    (void *)chunk, Chunk_mutatorAddress(chunk), Object_size(&chunk->object));
+
+            // 'free' chunk
+            chunk->allocated = 0;
+
+            // iterate the following chunks until we find a marked chunk
+            Chunk *limit = chunk->next;
+            size_t count = 0;
+
+            while ((limit != NULL) && !Chunk_isMarked(limit)) {
+                limit = limit->next;
+                count++;
+            }
+
+            // merge unmarked chunks
+            if (limit != chunk->next) {
+                ChunkList_merge(self, chunk, limit, count);
+            }
+
+            chunk = limit;
+        }
+    }
 }
 
 static inline void ChunkList_validate(ChunkList *self, void *heap_stop) {
@@ -136,7 +244,6 @@ static inline void ChunkList_validate(ChunkList *self, void *heap_stop) {
                 fprintf(stderr, "ASSERTION FAILED: heap_stop %p == chunk+header+size %p\n", heap_stop, actual);
                 abort();
             }
-
             if (chunk != self->last) {
                 fprintf(stderr, "ASSERTION FAILED: chunk %p == self->last %p\n", (void *)chunk, (void *)self->last);
                 abort();

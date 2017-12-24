@@ -20,4 +20,14 @@ static inline void* Object_mutatorAddress(Object* object) {
     return (char *)object + sizeof(Object);
 }
 
+// Returns the mutator size, not counting the object metadata.
+static inline size_t Object_mutatorSize(Object* object) {
+    return object->size - sizeof(Object);
+}
+
+// Returns the object size, counting the object metadata and the mutator size.
+static inline size_t Object_size(Object* object) {
+    return object->size;
+}
+
 #endif

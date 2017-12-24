@@ -1,6 +1,6 @@
 .POSIX:
 
-CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99 -D_BSD_SOURCE
+CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99
 LDFLAGS = $(PWD)/immix.a -lm
 
 OBJECTS = build/immix.o \

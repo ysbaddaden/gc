@@ -240,9 +240,118 @@ TEST test_ChunkList_split() {
     // split chunk3:
     chunk5 = ChunkList_split(&list, chunk3, chunk3->object.size - CHUNK_MIN_SIZE);
 
-    ChunkList_debug(&list);
+    // ChunkList_debug(&list);
 
     free(chunk1);
+    PASS();
+}
+
+// TODO: drop merge tests (test sweep instead)
+TEST test_ChunkList_merge() {
+    char *heap = malloc(1024);
+
+    ChunkList list;
+    ChunkList_clear(&list);
+
+    size_t size = 128 - CHUNK_HEADER_SIZE;
+    Chunk *chunk1 = (Chunk *)(heap +   0); Chunk_init(chunk1, size); ChunkList_push(&list, chunk1);
+    Chunk *chunk2 = (Chunk *)(heap + 128); Chunk_init(chunk2, size); ChunkList_push(&list, chunk2);
+    Chunk *chunk3 = (Chunk *)(heap + 256); Chunk_init(chunk3, size); ChunkList_push(&list, chunk3);
+    Chunk *chunk4 = (Chunk *)(heap + 384); Chunk_init(chunk4, size); ChunkList_push(&list, chunk4);
+    Chunk *chunk5 = (Chunk *)(heap + 512); Chunk_init(chunk5, size); ChunkList_push(&list, chunk5);
+    Chunk *chunk6 = (Chunk *)(heap + 640); Chunk_init(chunk6, size); ChunkList_push(&list, chunk6);
+    Chunk *chunk7 = (Chunk *)(heap + 768); Chunk_init(chunk7, size); ChunkList_push(&list, chunk7);
+    Chunk *chunk8 = (Chunk *)(heap + 896); Chunk_init(chunk8, size); ChunkList_push(&list, chunk8);
+
+    ASSERT_EQ_FMT(heap + 1024, ChunkList_limit(&list), "%p");
+
+    ChunkList_merge(&list, chunk1, chunk3, 1);
+    ASSERT_EQ(chunk3, chunk1->next);
+    ASSERT_EQ_FMT(256 - CHUNK_HEADER_SIZE, chunk1->object.size, "%zu");
+    ASSERT_EQ_FMT((size_t)7, list.size, "%zu");
+
+    ChunkList_merge(&list, chunk3, chunk6, 2);
+    ASSERT_EQ(chunk6, chunk3->next);
+    ASSERT_EQ_FMT(384 - CHUNK_HEADER_SIZE, chunk3->object.size, "%zu");
+    ASSERT_EQ_FMT((size_t)5, list.size, "%zu");
+
+    ChunkList_merge(&list, chunk6, NULL, 2);
+    ASSERT_EQ(NULL, chunk6->next);
+    ASSERT_EQ_FMT(384 - CHUNK_HEADER_SIZE, chunk6->object.size, "%zu");
+    ASSERT_EQ_FMT((void *)chunk6, (void *)list.last, "%p");
+    ASSERT_EQ_FMT((size_t)3, list.size, "%zu");
+
+    PASS();
+}
+
+TEST test_ChunkList_find() {
+    SKIP();
+}
+
+TEST test_ChunkList_sweep() {
+    char *heap = malloc(1024);
+
+    ChunkList list;
+    ChunkList_clear(&list);
+
+    ASSERT_EQ_FMT(NULL, ChunkList_limit(&list), "%p");
+
+    size_t size = 128 - CHUNK_HEADER_SIZE;
+    Chunk *chunk1 = (Chunk *)(heap +   0); Chunk_init(chunk1, size); ChunkList_push(&list, chunk1);
+    Chunk *chunk2 = (Chunk *)(heap + 128); Chunk_init(chunk2, size); ChunkList_push(&list, chunk2);
+    Chunk *chunk3 = (Chunk *)(heap + 256); Chunk_init(chunk3, size); ChunkList_push(&list, chunk3);
+    Chunk *chunk4 = (Chunk *)(heap + 384); Chunk_init(chunk4, size); ChunkList_push(&list, chunk4);
+    Chunk *chunk5 = (Chunk *)(heap + 512); Chunk_init(chunk5, size); ChunkList_push(&list, chunk5);
+    Chunk *chunk6 = (Chunk *)(heap + 640); Chunk_init(chunk6, size); ChunkList_push(&list, chunk6);
+    Chunk *chunk7 = (Chunk *)(heap + 768); Chunk_init(chunk7, size); ChunkList_push(&list, chunk7);
+    Chunk *chunk8 = (Chunk *)(heap + 896); Chunk_init(chunk8, size); ChunkList_push(&list, chunk8);
+
+    ASSERT_EQ_FMT(heap + 1024, ChunkList_limit(&list), "%p");
+
+    chunk1->allocated = 1;
+    chunk2->allocated = 1;
+    chunk3->allocated = 1;
+    chunk4->allocated = 1;
+    chunk5->allocated = 1;
+    chunk6->allocated = 1;
+    chunk7->allocated = 1;
+    chunk8->allocated = 1;
+
+    Chunk_unmark(chunk1);
+    Chunk_unmark(chunk2);
+    Chunk_mark(chunk3);
+    Chunk_unmark(chunk4);
+    Chunk_mark(chunk5);
+    Chunk_unmark(chunk6);
+    Chunk_unmark(chunk7);
+    Chunk_unmark(chunk8);
+
+    ChunkList_sweep(&list);
+
+    // merged chunks 1 and 2:
+    ASSERT_FALSE(chunk1->allocated);
+    ASSERT_EQ_FMT((void *)chunk3, (void *)chunk1->next, "%p");
+    ASSERT_EQ_FMT(256 - CHUNK_HEADER_SIZE, chunk1->object.size, "%zu");
+
+    // kept chunks 3, 4 and 5:
+    ASSERT(chunk3->allocated);
+    ASSERT_EQ_FMT((void *)chunk4, (void *)chunk3->next, "%p");
+
+    ASSERT_FALSE(chunk4->allocated);
+    ASSERT_EQ_FMT((void *)chunk5, (void *)chunk4->next, "%p");
+
+    ASSERT(chunk5->allocated);
+    ASSERT_EQ_FMT((void *)chunk6, (void *)chunk5->next, "%p");
+
+    // merged chunks 6, 7 and 8:
+    ASSERT_FALSE(chunk6->allocated);
+    ASSERT_EQ_FMT(NULL, (void *)chunk6->next, "%p");
+    ASSERT_EQ_FMT(384 - CHUNK_HEADER_SIZE, chunk6->object.size, "%zu");
+
+    // updated list:
+    ASSERT_EQ_FMT((void *)chunk6, (void *)list.last, "%p");
+    ASSERT_EQ_FMT((size_t)5, list.size, "%zu");
+
     PASS();
 }
 
@@ -252,4 +361,7 @@ SUITE(ChunkListSuite) {
     //RUN_TEST(test_ChunkList_shift);
     RUN_TEST(test_ChunkList_insert);
     RUN_TEST(test_ChunkList_split);
+    RUN_TEST(test_ChunkList_merge);
+    RUN_TEST(test_ChunkList_find);
+    RUN_TEST(test_ChunkList_sweep);
 }

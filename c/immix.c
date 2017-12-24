@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -16,7 +18,7 @@ static Collector *GC_collector;
 void GC_init(size_t initial_size) {
     // We could allocate static values instead of using `malloc`, but then the
     // structs would be inlined in the BSS section, along with pointers to the
-    // HEAP, that would be invalid and complicated to skip.
+    // HEAP...
     //
     // To keep things simple, we allocate into the libc HEAP, so the BSS section
     // will only have pointers to the program HEAP and won't find pointers to
@@ -49,25 +51,36 @@ int GC_in_heap(void *pointer) {
   return GlobalAllocator_inHeap(global_allocator, pointer);
 }
 
-void* GC_malloc(size_t size) {
-    void *pointer = GlobalAllocator_allocateLarge(global_allocator, size, 0);
-    DEBUG("GC: malloc chunk=%p size=%zu atomic=0 ptr=%p\n", (void*)((Chunk *)pointer - 1), size, pointer);
+static inline void *GC_malloc_with_atomic(size_t size, int atomic) {
+    void *pointer;
+
+    if (size <= LARGE_OBJECT_SIZE - sizeof(Object)) {
+        pointer = GlobalAllocator_allocateSmall(global_allocator, size, atomic);
+    } else {
+        pointer = GlobalAllocator_allocateLarge(global_allocator, size, atomic);
+    }
+
+    DEBUG("GC: malloc chunk=%p size=%zu actual=%zu atomic=%d ptr=%p\n",
+            (void *)((Chunk *)pointer - 1),
+            size,
+            ((Chunk *)pointer - 1)->object.size + CHUNK_HEADER_SIZE,
+            atomic, pointer);
+
     return pointer;
+}
+
+void* GC_malloc(size_t size) {
+    return GC_malloc_with_atomic(size, 0);
 }
 
 void* GC_malloc_atomic(size_t size) {
-    void *pointer = GlobalAllocator_allocateLarge(global_allocator, size, 1);
-    DEBUG("GC: malloc chunk=%p size=%zu atomic=1 ptr=%p\n", (void*)((Chunk *)pointer - 1), size, pointer);
-    return pointer;
+    return GC_malloc_with_atomic(size, 1);
 }
 
 void* GC_realloc(void *pointer, size_t size) {
-    void *new_pointer;
-
     // realloc(3) compatibility
     if (pointer == NULL) {
-        new_pointer = GC_malloc(size);
-        return new_pointer;
+        return GC_malloc(size);
     }
 
     if (size == 0) {
@@ -77,16 +90,17 @@ void* GC_realloc(void *pointer, size_t size) {
 
     // find object size
     Object *object = (Object *)((char *)pointer - sizeof(Object));
+    size_t available = Object_mutatorSize(object);
 
     // keep current allocation
-    if (size <= object->size) {
+    if (size <= available) {
         return pointer;
     }
 
     // reallocate
-    new_pointer = GlobalAllocator_allocateLarge(global_allocator, size, object->atomic);
-    memcpy(new_pointer, pointer, object->size);
-    //GlobalAllocator_deallocateLarge(global_allocator, pointer);
+    void *new_pointer = GC_malloc_with_atomic(size, object->atomic);
+    memcpy(new_pointer, pointer, available);
+    GC_free(pointer);
 
     DEBUG("GC: realloc old=%p new=%p size=%zu atomic=%d\n", pointer, new_pointer, size, object->atomic);
 
@@ -96,9 +110,11 @@ void* GC_realloc(void *pointer, size_t size) {
 void GC_free(void *pointer) {
     DEBUG("GC: free ptr=%p\n", pointer);
 
-    //if (GlobalAllocator_inLargeHeap(global_allocator, pointer)) {
-    //    GlobalAllocator_deallocateLarge(global_allocator, pointer);
-    //}
+    if (GlobalAllocator_inSmallHeap(global_allocator, pointer)) {
+        GlobalAllocator_deallocateSmall(global_allocator, pointer);
+    } else if (GlobalAllocator_inLargeHeap(global_allocator, pointer)) {
+        GlobalAllocator_deallocateLarge(global_allocator, pointer);
+    }
 }
 
 void GC_collect_once() {

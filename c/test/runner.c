@@ -1,3 +1,5 @@
+#include "../config.h"
+
 #include "chunk_list_test.c"
 #include "memory_test.c"
 #include "object_test.c"

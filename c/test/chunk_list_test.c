@@ -98,29 +98,6 @@ TEST test_ChunkList_push() {
     PASS();
 }
 
-//TEST test_ChunkList_shift() {
-//    ChunkList list;
-//    ChunkList_clear(&list);
-//
-//    Chunk chunk1; Chunk_init(&chunk1, 8); ChunkList_push(&list, &chunk1);
-//    Chunk chunk2; Chunk_init(&chunk2, 8); ChunkList_push(&list, &chunk2);
-//    Chunk chunk3; Chunk_init(&chunk3, 8); ChunkList_push(&list, &chunk3);
-//
-//    ASSERT_EQ(&chunk1, ChunkList_shift(&list));
-//    ASSERT_EQ(2, list.size);
-//
-//    ASSERT_EQ(&chunk2, ChunkList_shift(&list));
-//    ASSERT_EQ(1, list.size);
-//
-//    ASSERT_EQ(&chunk3, ChunkList_shift(&list));
-//    ASSERT_EQ(0, list.size);
-//    ASSERT(ChunkList_isEmpty(&list));
-//
-//    ASSERT_EQ(NULL, ChunkList_shift(&list));
-//
-//    PASS();
-//}
-
 TEST test_ChunkList_insert() {
     ChunkList list;
     ChunkList_clear(&list);

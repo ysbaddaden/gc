@@ -15,17 +15,24 @@ void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
 
     size_t memory_limit = GC_getMemoryLimit();
 
-    void *small_start = GC_mapAndAlign(memory_limit, initial_size);
+    // small object space (immix)
+    void *heap_start = GC_mapAndAlign(memory_limit, initial_size);
     self->small_heap_size = initial_size;
-    self->small_heap_start = small_start;
-    self->small_heap_stop = (char *)small_start + initial_size;
+    self->small_heap_start = heap_start;
+    self->small_heap_stop = (char *)heap_start + initial_size;
 
-    Chunk *small_chunk = (Chunk *)small_start;
-    Chunk_init(small_chunk, initial_size - CHUNK_HEADER_SIZE);
+    BlockList_clear(&self->free_list);
+    BlockList_clear(&self->recyclable_list);
 
-    ChunkList_clear(&self->small_chunk_list);
-    ChunkList_push(&self->small_chunk_list, small_chunk);
+    Block *block = (Block *)self->small_heap_start;
+    Block *stop = (Block *)self->small_heap_stop;
+    while (block < stop) {
+        Block_init(block);
+        BlockList_push(&self->free_list, block);
+        block = (Block *)((char *)block + BLOCK_SIZE);
+    }
 
+    // large objects space (linked list)
     void *large_start = GC_mapAndAlign(memory_limit, initial_size);
     self->large_heap_size = initial_size;
     self->large_heap_start = large_start;
@@ -41,35 +48,34 @@ void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
             initial_size, self->small_heap_start, self->small_heap_stop, self->large_heap_start, self->large_heap_stop);
 }
 
-static inline void GlobalAllocator_growSmall(GlobalAllocator *self, size_t increment) {
-    size_t size = (size_t)1 << (size_t)ceil(log2((double)increment));
-    size = ROUND_TO_NEXT_MULTIPLE(size, BLOCK_SIZE);
+static inline void GlobalAllocator_growSmall(GlobalAllocator *self) {
+    size_t increment = self->small_heap_size * GROWTH_RATE / 100;
+    increment = ROUND_TO_NEXT_MULTIPLE(increment, BLOCK_SIZE);
 
-    if (self->small_heap_size + size > GC_getMemoryLimit()) {
+    if (self->small_heap_size + self->large_heap_size + increment > GC_getMemoryLimit()) {
         fprintf(stderr, "GC: out of memory\n");
         abort();
     }
 
-    DEBUG("GC: grow small heap by %zu bytes to %zu bytes\n", size, self->small_heap_size + size);
+    DEBUG("GC: grow small heap by %zu bytes to %zu bytes\n", increment, self->small_heap_size + increment);
 
-    void *cursor = self->small_heap_stop;
-    self->small_heap_stop = (char *)(self->small_heap_stop) + size;
-    self->small_heap_size = self->small_heap_size + size;
+    char *cursor = self->small_heap_stop;
+    self->small_heap_stop = (char *)(self->small_heap_stop) + increment;
+    self->small_heap_size = self->small_heap_size + increment;
 
-    Chunk *chunk = (Chunk *)cursor;
-    Chunk_init(chunk, size - CHUNK_HEADER_SIZE);
-
-    ChunkList_push(&self->small_chunk_list, chunk);
-#ifdef GC_DEBUG
-    ChunkList_validate(&self->small_chunk_list, self->small_heap_stop);
-#endif
+    int count = increment / BLOCK_SIZE;
+    for (int i = 0; i < count; i++) {
+        Block *block = (Block*)(cursor + i * BLOCK_SIZE);
+        Block_init(block);
+        BlockList_push(&self->free_list, block);
+    }
 }
 
 static inline void GlobalAllocator_growLarge(GlobalAllocator *self, size_t increment) {
     size_t size = (size_t)1 << (size_t)ceil(log2((double)increment));
     size = ROUND_TO_NEXT_MULTIPLE(size, BLOCK_SIZE);
 
-    if (self->large_heap_size + size > GC_getMemoryLimit()) {
+    if (self->small_heap_size + self->large_heap_size + size > GC_getMemoryLimit()) {
         fprintf(stderr, "GC: out of memory\n");
         abort();
     }
@@ -89,52 +95,7 @@ static inline void GlobalAllocator_growLarge(GlobalAllocator *self, size_t incre
 #endif
 }
 
-static inline void GlobalAllocator_allocateChunk(GlobalAllocator *self, Chunk *chunk, int atomic) {
-    chunk->allocated = 1;
-    chunk->object.atomic = atomic;
-}
-
-static inline void* GlobalAllocator_tryAllocateSmall(GlobalAllocator *self, size_t size, int atomic) {
-    size_t object_size = size + sizeof(Object);
-
-    // simply iterate again from the start (happens to be faster?!):
-    Chunk *chunk = self->small_chunk_list.first;
-
-    while (chunk != NULL) {
-
-#ifndef NDEBUG
-        if ((void *)chunk < self->small_heap_start) {
-            ChunkList_validate(&self->small_chunk_list, self->small_heap_stop);
-            abort();
-        }
-        if ((void *)chunk >= self->small_heap_stop) {
-            ChunkList_validate(&self->small_chunk_list, self->small_heap_stop);
-            abort();
-        }
-#endif
-
-        if (!chunk->allocated) {
-            size_t available = chunk->object.size;
-
-            if (object_size <= available) {
-                ChunkList_split(&self->small_chunk_list, chunk, object_size);
-#ifdef GC_DEBUG
-                ChunkList_validate(&self->small_chunk_list, self->small_heap_stop);
-#endif
-                GlobalAllocator_allocateChunk(self, chunk, atomic);
-                return Chunk_mutatorAddress(chunk);
-            }
-        }
-
-        // try next chunk
-        chunk = chunk->next;
-    }
-
-    // unreachable
-    return NULL;
-}
-
-static inline void* GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size_t size, int atomic) {
+static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size_t size, int atomic) {
     size_t object_size = size + sizeof(Object);
 
     // simply iterate again from the start (happens to be faster?!):
@@ -152,7 +113,8 @@ static inline void* GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
 #ifdef GC_DEBUG
                 ChunkList_validate(&self->large_chunk_list, self->large_heap_stop);
 #endif
-                GlobalAllocator_allocateChunk(self, chunk, atomic);
+                chunk->allocated = 1;
+                chunk->object.atomic = atomic;
                 return Chunk_mutatorAddress(chunk);
             }
         }
@@ -165,40 +127,42 @@ static inline void* GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
     return NULL;
 }
 
-void* GC_GlobalAllocator_allocateSmall(GlobalAllocator *self, size_t size, int atomic) {
-    size_t rsize = ROUND_TO_NEXT_MULTIPLE(size, sizeof(void *));
+// TODO: thread safety
+Block *GC_GlobalAllocator_nextBlock(GlobalAllocator *self) {
+    Block *block;
 
-    void *mutator;
+    // 1. exhaust recyclable list:
+    block = BlockList_shift(&self->recyclable_list);
+    if (block != NULL) return block;
 
-    // 1. try to allocate
-    mutator = GlobalAllocator_tryAllocateSmall(self, rsize, atomic);
-    if (mutator != NULL) return mutator;
+    // 2. exhaust free list:
+    block = BlockList_shift(&self->free_list);
+    if (block != NULL) return block;
 
-    // 2. collect memory
+    // 3. no block? collect!
     GC_collect();
 
-    // 3. try to allocate (again)
-    mutator = GlobalAllocator_tryAllocateSmall(self, rsize, atomic);
-    if (mutator != NULL) return mutator;
+    // 4. exhaust freshly recycled list:
+    block = BlockList_shift(&self->recyclable_list);
+    if (block != NULL) return block;
 
-    // 4. grow memory
-    GlobalAllocator_growSmall(self, rsize + sizeof(Chunk));
+    // 5. no more free blocks? grow!
+    if (BlockList_isEmpty(&self->free_list)) {
+        GlobalAllocator_growSmall(self);
+    }
 
-    // 5. allocate!
-    mutator = GlobalAllocator_tryAllocateSmall(self, rsize, atomic);
-    if (mutator != NULL) return mutator;
+    // 6. get free block!
+    block = BlockList_shift(&self->free_list);
+    if (block != NULL) return block;
 
-    // 6. seriously? no luck.
-    fprintf(stderr, "GC: failed to allocate small object size=%zu object_size=%zu + %zu\n",
-            size, rsize, sizeof(Object));
-
-    ChunkList_debug(&self->small_chunk_list);
+    // 7. seriously, no luck
+    fprintf(stderr, "GC: failed to allocate small object (can't shift block from free list)\n");
     abort();
 }
 
-void* GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int atomic) {
-    size_t rsize = ROUND_TO_NEXT_MULTIPLE(size, sizeof(void *));
-
+// TODO: thread safety
+void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int atomic) {
+    size_t rsize = ROUND_TO_NEXT_MULTIPLE(size, WORD_SIZE);
     void *mutator;
 
     // 1. try to allocate
@@ -220,23 +184,128 @@ void* GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int a
     if (mutator != NULL) return mutator;
 
     // 6. seriously? no luck.
-    fprintf(stderr, "GC: failed to allocate large object size=%zu object_size=%zu + %zu\n",
-            size, rsize, sizeof(Object));
+    fprintf(stderr, "GC: failed to allocate large object size=%zu actual=%zu +metadata=%zu\n",
+            size, rsize, sizeof(Chunk));
 
     ChunkList_debug(&self->large_chunk_list);
     abort();
 }
 
-void GC_GlobalAllocator_deallocateSmall(GlobalAllocator *self, void *pointer) {
-    Chunk *chunk = (Chunk *)pointer - 1;
-    chunk->allocated = (uint8_t)0;
-
-    // TODO: merge with next free chunks
-}
-
+// TODO: thread safety (?)
 void GC_GlobalAllocator_deallocateLarge(GlobalAllocator *self, void *pointer) {
     Chunk *chunk = (Chunk *)pointer - 1;
     chunk->allocated = (uint8_t)0;
 
-    // TODO: merge with next free chunks
+    // TODO: merge with next free chunks (?)
+}
+
+void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self) {
+    BlockList_clear(&self->free_list);
+    BlockList_clear(&self->recyclable_list);
+
+    Block *block = self->small_heap_start;
+    Block *stop = self->small_heap_stop;
+
+    while (block < stop) {
+        if (!Block_isMarked(block)) {
+            // free block
+            Block_setFree(block);
+            DEBUG("GC: free block=%p\n", (void *)block);
+            BlockList_push(&self->free_list, block);
+        } else {
+            // try to recycle block (find unmarked lines)
+            char *line_headers = block->line_headers;
+
+            int first_free_line_index = INVALID_LINE_INDEX;
+
+            // we determine, link and record holes (free lines) in a recycled
+            // block while sweeping (so allocating doesn't have to do it):
+            Hole *hole = NULL;
+            Hole *previous_hole = NULL;
+
+            // conservative marking (immix page 5): requires that we skip a free
+            // line (see below), and iterate free lines by 2, so we iterate up
+            // to N-1 only:
+            for (int line_index = 0; line_index < LINE_COUNT; line_index++) {
+                char *line_header = line_headers + line_index;
+
+                if (LineHeader_isMarked(line_header)) {
+                    if (hole != NULL) {
+                        DEBUG("GC: line=%d marked=1 stop=%p\n", line_index, (void *)Block_line(block, line_index));
+                        hole->limit = Block_line(block, line_index);
+                        previous_hole = hole;
+                        hole = NULL;
+                    } else {
+                        //DEBUG("GC: line=%d marked=1\n", line_index);
+                    }
+                } else {
+                    if (hole == NULL) {
+                        DEBUG("GC: line=%d marked=0 skip\n", line_index);
+                    //} else {
+                    //    DEBUG("GC: line=%d marked=0\n", line_index);
+                    }
+                    LineHeader_clear(line_header);
+
+                    if (hole == NULL && line_index != LINE_COUNT - 1) {
+                        // conservative marking (immix page 5): the collector only
+                        // marked the starting line for small objects (smaller than
+                        // LINE_SIZE), but small objects may span a line, so we skip
+                        // a free line when determining holes:
+                        if (!LineHeader_isMarked(line_header + 1)) {
+                            line_index++;
+                            line_header++;
+
+                            LineHeader_clear(line_header);
+#ifndef NDEBUG
+                            // clear free lines: if marking was wrong it will
+                            // corrupt allocations, causing a rapid segfault!
+                            memset(Block_line(block, line_index), 0, LINE_SIZE);
+#endif
+                            if (first_free_line_index == INVALID_LINE_INDEX) {
+                                first_free_line_index = line_index;
+                            }
+                            if (hole == NULL) {
+                                DEBUG("GC: line=%d marked=0 start=%p\n", line_index, (void *)Block_line(block, line_index));
+                                hole = (Hole *)Block_line(block, line_index);
+                                Hole_init(hole);
+                            } else {
+                                //DEBUG("GC: line=%d marked=0\n", line_index);
+                            }
+                            if (previous_hole != NULL) {
+                                previous_hole->next = hole;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (hole != NULL && hole->limit == NULL) {
+                DEBUG("GC: line=126 marked=0 stop=%p\n", (void *)Block_stop(block));
+                hole->limit = Block_stop(block);
+            }
+
+            // at least 1 free line? recycle block; otherwise block is unavailable
+            if (first_free_line_index == INVALID_LINE_INDEX) {
+                DEBUG("GC: unavailable block=%p\n", (void *)block);
+                Block_setUnavailable(block);
+            } else {
+                DEBUG("GC: recyclable block=%p first_free_line_index=%d\n",
+                        (void *)block, first_free_line_index);
+                Block_setRecyclable(block, first_free_line_index);
+                BlockList_push(&self->recyclable_list, block);
+
+#ifdef GC_DEBUG
+                hole = (Hole *)Block_firstFreeLine(block);
+                while (hole != NULL) {
+                    intptr_t size = hole->limit - (char *)hole;
+                    fprintf(stderr, "GC: hole start=%p limit=%p size=%ld next=%p\n",
+                            (void *)hole, (void *)hole->limit, size, (void *)hole->next);
+                    hole = hole->next;
+                }
+#endif
+            }
+        }
+
+        block = (Block *)((char *)block + BLOCK_SIZE);
+    }
 }

@@ -1,47 +1,89 @@
 #include "greatest.h"
 #include "immix.h"
 
-TEST test_GC_malloc() {
-    void *pointer = GC_malloc(128);
+#include "constants.h"
+#include "chunk_list.h"
+#include "block_list.h"
+
+TEST test_GC_malloc_small() {
+    void *small = GC_malloc(64);
 
     // allocated memory
-    ASSERT(pointer != NULL);
+    ASSERT(small != NULL);
+
+    // initialized object
+    Object *object = (Object *)((char *)small - sizeof(Object));
+    ASSERT_EQ_FMT(sizeof(Object) + 64, object->size, "%zu");
+    ASSERT_EQ_FMT(0, object->marked, "%d");
+    ASSERT_EQ_FMT(0, object->atomic, "%d");
+
+    // cleared next object size
+    object = (Object *)((char *)small - sizeof(Object) + object->size);
+    ASSERT_EQ_FMT((size_t)0, object->size, "%zu");
+
+    PASS();
+}
+
+TEST test_GC_malloc_large() {
+    void *large = GC_malloc(LARGE_OBJECT_SIZE);
+
+    // allocated memory
+    ASSERT(large != NULL);
 
     // initialized chunk
-    Chunk *chunk = (Chunk *)((char *)pointer - sizeof(Chunk));
+    Chunk *chunk = (Chunk *)((char *)large - sizeof(Chunk));
     ASSERT(chunk->next != NULL);
     ASSERT_EQ_FMT(1, chunk->allocated, "%d");
 
     // initialized object
-    Object *object = (Object *)((char *)pointer - sizeof(Object));
-    ASSERT_EQ_FMT(sizeof(Object) + 128, object->size, "%zu");
+    Object *object = (Object *)((char *)large - sizeof(Object));
+    ASSERT_EQ_FMT(sizeof(Object) + LARGE_OBJECT_SIZE, object->size, "%zu");
     ASSERT_EQ_FMT(0, object->marked, "%d");
     ASSERT_EQ_FMT(0, object->atomic, "%d");
 
     PASS();
 }
 
-TEST test_GC_malloc_atomic() {
-    void *pointer = GC_malloc_atomic(256);
+TEST test_GC_malloc_atomic_small() {
+    void *small = GC_malloc_atomic(256);
 
     // allocated memory
-    ASSERT(pointer != NULL);
+    ASSERT(small != NULL);
+
+    // initialized object
+    Object *object = (Object *)((char *)small - sizeof(Object));
+    ASSERT_EQ_FMT(sizeof(Object) + 256, object->size, "%zu");
+    ASSERT_EQ_FMT(0, object->marked, "%d");
+    ASSERT_EQ_FMT(1, object->atomic, "%d");
+
+    // cleared next object size
+    object = (Object *)((char *)small - sizeof(Object) + object->size);
+    ASSERT_EQ_FMT((size_t)0, object->size, "%zu");
+
+    PASS();
+}
+
+TEST test_GC_malloc_atomic_large() {
+    void *large = GC_malloc_atomic(LARGE_OBJECT_SIZE * 2);
+
+    // allocated memory
+    ASSERT(large != NULL);
 
     // initialized chunk
-    Chunk *chunk = (Chunk *)((char *)pointer - sizeof(Chunk));
+    Chunk *chunk = (Chunk *)((char *)large - sizeof(Chunk));
     ASSERT(chunk->next != NULL);
     ASSERT_EQ_FMT(1, chunk->allocated, "%d");
 
     // initialized object
-    Object *object = (Object *)((char *)pointer - sizeof(Object));
-    ASSERT_EQ_FMT(sizeof(Object) + 256, object->size, "%zu");
+    Object *object = (Object *)((char *)large - sizeof(Object));
+    ASSERT_EQ_FMT(sizeof(Object) + LARGE_OBJECT_SIZE * 2, object->size, "%zu");
     ASSERT_EQ_FMT(0, object->marked, "%d");
     ASSERT_EQ_FMT(1, object->atomic, "%d");
 
     PASS();
 }
 
-TEST test_GC_realloc() {
+TEST test_GC_realloc_small() {
     // realloc NULL pointer: allocate memory
     void *ptr1 = GC_realloc(NULL, 64);
     ASSERT(ptr1 != NULL);
@@ -76,6 +118,10 @@ TEST test_GC_realloc() {
     ASSERT_EQ_FMT(sizeof(Object) + 128, obj->size, "%zu");
 
     PASS();
+}
+
+TEST test_GC_realloc_large() {
+    SKIP();
 }
 
 TEST test_GC_collect() {
@@ -118,9 +164,12 @@ TEST test_grows_memory() {
 }
 
 SUITE(ImmixSuite) {
-    RUN_TEST(test_GC_malloc);
-    RUN_TEST(test_GC_malloc_atomic);
-    RUN_TEST(test_GC_realloc);
+    RUN_TEST(test_GC_malloc_small);
+    RUN_TEST(test_GC_malloc_large);
+    RUN_TEST(test_GC_malloc_atomic_small);
+    RUN_TEST(test_GC_malloc_atomic_large);
+    RUN_TEST(test_GC_realloc_small);
+    RUN_TEST(test_GC_realloc_large);
     RUN_TEST(test_GC_collect);
     RUN_TEST(test_GC_free);
     RUN_TEST(test_grows_memory);

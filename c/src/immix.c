@@ -6,11 +6,16 @@
 #include <string.h>
 #include "collector.h"
 #include "global_allocator.h"
+#include "local_allocator.h"
 #include "immix.h"
 #include "utils.h"
 
 static GlobalAllocator *GC_global_allocator;
 #define global_allocator GC_global_allocator
+
+// TODO: associate local allocators to threads.
+static LocalAllocator *GC_local_allocator;
+#define local_allocator GC_local_allocator
 
 static Collector *GC_collector;
 #define collector GC_collector
@@ -30,6 +35,13 @@ void GC_init(size_t initial_size) {
         abort();
     }
     GlobalAllocator_init(global_allocator, initial_size);
+
+    local_allocator = malloc(sizeof(LocalAllocator));
+    if (local_allocator == NULL) {
+        fprintf(stderr, "malloc failed %s\n", strerror(errno));
+        abort();
+    }
+    LocalAllocator_init(local_allocator, global_allocator);
 
     collector = malloc(sizeof(Collector));
     if (collector == NULL) {
@@ -55,16 +67,22 @@ static inline void *GC_malloc_with_atomic(size_t size, int atomic) {
     void *pointer;
 
     if (size <= LARGE_OBJECT_SIZE - sizeof(Object)) {
-        pointer = GlobalAllocator_allocateSmall(global_allocator, size, atomic);
+        pointer = LocalAllocator_allocateSmall(local_allocator, size, atomic);
+
+        DEBUG("GC: malloc object=%p size=%zu actual=%zu atomic=%d ptr=%p\n",
+                (void *)((Object *)pointer - 1),
+                size,
+                ((Object *)pointer - 1)->size,
+                atomic, pointer);
     } else {
         pointer = GlobalAllocator_allocateLarge(global_allocator, size, atomic);
-    }
 
-    DEBUG("GC: malloc chunk=%p size=%zu actual=%zu atomic=%d ptr=%p\n",
-            (void *)((Chunk *)pointer - 1),
-            size,
-            ((Chunk *)pointer - 1)->object.size + CHUNK_HEADER_SIZE,
-            atomic, pointer);
+        DEBUG("GC: malloc chunk=%p size=%zu actual=%zu atomic=%d ptr=%p\n",
+                (void *)((Chunk *)pointer - 1),
+                size,
+                ((Chunk *)pointer - 1)->object.size + CHUNK_HEADER_SIZE,
+                atomic, pointer);
+    }
 
     return pointer;
 }
@@ -110,15 +128,14 @@ void* GC_realloc(void *pointer, size_t size) {
 void GC_free(void *pointer) {
     DEBUG("GC: free ptr=%p\n", pointer);
 
-    if (GlobalAllocator_inSmallHeap(global_allocator, pointer)) {
-        GlobalAllocator_deallocateSmall(global_allocator, pointer);
-    } else if (GlobalAllocator_inLargeHeap(global_allocator, pointer)) {
+    if (GlobalAllocator_inLargeHeap(global_allocator, pointer)) {
         GlobalAllocator_deallocateLarge(global_allocator, pointer);
     }
 }
 
 void GC_collect_once() {
     Collector_collect(collector);
+    LocalAllocator_reset(GC_local_allocator);
 }
 
 void GC_register_collect_callback(collect_callback_t collect_callback) {
@@ -127,4 +144,55 @@ void GC_register_collect_callback(collect_callback_t collect_callback) {
 
 void GC_mark_region(void *stack_pointer, void *stack_bottom, const char *source) {
     Collector_markRegion(collector, stack_pointer, stack_bottom, source);
+}
+
+void GC_print_stats() {
+    // SMALL HEAP STATS
+    size_t count = 0;
+    size_t bytes = 0;
+
+    Block *block = global_allocator->small_heap_start;
+    Block *stop = global_allocator->small_heap_stop;
+
+    while (block < stop) {
+        char *line_headers = Block_lineHeaders(block);
+
+        for (int line_index = 0; line_index < LINE_COUNT; line_index++) {
+            char *line_header = line_headers + line_index;
+
+            if (LineHeader_containsObject(line_header)) {
+                char *line = Block_line(block, line_index);
+                int offset = LineHeader_getOffset(line_header);
+
+                while (offset < LINE_SIZE) {
+                    Object *object = (Object *)(line + offset);
+                    if (object->size == 0) break;
+
+                    count += 1;
+                    bytes += object->size - sizeof(Object);
+
+                    offset = offset + object->size;
+                }
+            }
+        }
+
+        block = (Block *)((char *)block + BLOCK_SIZE);
+    }
+
+    fprintf(stderr, "\nsmall: count=%zu bytes=%zu -- ", count, bytes);
+
+    // LARGE HEAP STATS
+    count = 0;
+    bytes = 0;
+
+    Chunk *chunk = global_allocator->large_chunk_list.first;
+    while (chunk != NULL) {
+        if (chunk->allocated) {
+            count += 1;
+            bytes += chunk->object.size - sizeof(Object);
+        }
+        chunk = chunk->next;
+    }
+
+    fprintf(stderr, "large: count=%zu bytes=%zu\n", count, bytes);
 }

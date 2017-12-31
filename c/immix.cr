@@ -1,28 +1,4 @@
-@[Link("pthread")]
-@[Link("m")]
-@[Link(ldflags: "#{__DIR__}/immix.a")]
-lib LibC
-  fun GC_init(SizeT) : Void
-  fun GC_malloc(SizeT) : Void*
-  fun GC_malloc_atomic(SizeT) : Void*
-  fun GC_realloc(Void*, SizeT) : Void*
-  fun GC_free(Void*) : Void
-  fun GC_in_heap(Void*) : Int
-
-  alias CollectCallbackT = ->
-  fun GC_register_collect_callback(CollectCallbackT) : Int
-  fun GC_collect_once() : Void
-  fun GC_mark_region(Void*, Void*, Char*) : Void
-
-  # alias FinalizerT = Void* -> Nil
-  # fun GC_register_finalizer(Void*, FinalizerT) : Int
-
-  {% if flag?(:gnu) %}
-    $__libc_stack_end : Void*
-  {% end %}
-
-  fun abort
-end
+require "./lib_immix"
 
 fun gc_collect = GC_collect
   GC.collect
@@ -33,8 +9,16 @@ module GC
   @@collector : Fiber?
 
   def self.init : Nil
-    #LibC.GC_init(4 * 1024 * 1024);
-    LibC.GC_init(32768 * 2);
+    if ptr = LibC.getenv("GC_INITIAL_HEAP_SIZE")
+      initial_size = LibC.atol(ptr)
+    else
+      initial_size = 4 * 1024 * 1024
+    end
+
+    # initial_size = (ENV["GC_INITIAL_HEAP_SIZE"]? || 4 * 1024 * 1024).to_i64
+    # LibC.printf("HEAP=%d\n", initial_size)
+
+    LibC.GC_init(initial_size);
     @@collector = spawn(name: "GC_IMMIX_COLLECTOR") { collector_loop }
   end
 
@@ -85,7 +69,6 @@ module GC
     end
   end
 
-
   def self.is_heap_ptr(pointer : Void*)
     LibC.GC_in_heap(pointer) == 1
   end
@@ -106,6 +89,8 @@ module GC
   end
 
   def self.stats
+    LibC.GC_print_stats()
+
     # TODO: stats
     zero = LibC::ULong.new(0)
     Stats.new(zero, zero, zero, zero, zero)
@@ -130,13 +115,11 @@ module GC
 
   # :nodoc:
   def self.stack_bottom : Void*
-    {% if flag?(:linux) %}
-      {% if flag?(:gnu) %}
-        return LibC.__libc_stack_end
-      {% end %}
+    {% if flag?(:linux) && flag?(:gnu) %}
+      return LibC.__libc_stack_end
+    {% else %}
+      {% raise "GC: unsupported target (only <arch>-linux-gnu is supported)" %}
     {% end %}
-
-    {% raise "GC: unsupported target (only <arch>-linux-gnu is supported)" %}
   end
 
   # :nodoc:

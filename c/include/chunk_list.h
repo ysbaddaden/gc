@@ -88,17 +88,6 @@ static inline void ChunkList_push(ChunkList *self, Chunk *chunk) {
     self->size++;
 }
 
-//static inline Chunk *ChunkList_shift(ChunkList *self) {
-//    Chunk *chunk = self->first;
-//
-//    if (chunk != NULL) {
-//        self->first = chunk->next;
-//        self->size--;
-//    }
-//
-//    return chunk;
-//}
-
 static inline void ChunkList_insert(ChunkList *self, Chunk *chunk, Chunk* after) {
     Chunk *previous = after;
 

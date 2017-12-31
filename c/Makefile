@@ -5,12 +5,13 @@ LDFLAGS = $(PWD)/immix.a -lm
 
 OBJECTS = build/immix.o \
 		  build/global_allocator.o \
+		  build/local_allocator.o \
 		  build/collector.o
 
 all: immix.a
 
 immix.a: $(OBJECTS)
-	$(AR) -rc immix.a build/immix.o build/global_allocator.o build/collector.o
+	$(AR) -rc immix.a $(OBJECTS)
 
 build/%.o: src/%.c include/*.h
 	@mkdir -p build

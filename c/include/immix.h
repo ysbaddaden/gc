@@ -1,6 +1,8 @@
 #ifndef GC_IMMIX_H
 #define GC_IMMIX_H
 
+#include <stddef.h>
+
 // GC must have been initialized before calling any other GC_ function.
 // Otherwise these functions will segfault the program.
 void GC_init(size_t initial_size);

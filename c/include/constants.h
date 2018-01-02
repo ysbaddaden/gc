@@ -19,4 +19,11 @@
 
 #define WORD_SIZE (sizeof(void *))
 
+
+// The following constants can be defined at runtime as environment variables of
+// the same name, optionaly sufixed with a multiplier ('k', 'm' or 'g').
+
+#define GC_INITIAL_HEAP_SIZE (4 * 1024 * 1024)
+// #define GC_MAXIMUM_HEAP_SIZE
+
 #endif

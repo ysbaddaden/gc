@@ -8,15 +8,17 @@
 #include "immix.h"
 #include "memory.h"
 #include "utils.h"
+#include "options.h"
 
 void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
     assert(initial_size >= BLOCK_SIZE * 2);
     assert(initial_size % BLOCK_SIZE == 0);
 
-    size_t memory_limit = GC_getMemoryLimit();
+    self->memory_limit = GC_maximumHeapSize();
+    self->allocated_bytes = 0;
 
     // small object space (immix)
-    void *heap_start = GC_mapAndAlign(memory_limit, initial_size);
+    void *heap_start = GC_mapAndAlign(self->memory_limit, initial_size);
     self->small_heap_size = initial_size;
     self->small_heap_start = heap_start;
     self->small_heap_stop = (char *)heap_start + initial_size;
@@ -33,7 +35,7 @@ void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
     }
 
     // large objects space (linked list)
-    void *large_start = GC_mapAndAlign(memory_limit, initial_size);
+    void *large_start = GC_mapAndAlign(self->memory_limit, initial_size);
     self->large_heap_size = initial_size;
     self->large_heap_start = large_start;
     self->large_heap_stop = (char *)large_start + initial_size;
@@ -52,7 +54,7 @@ static inline void GlobalAllocator_growSmall(GlobalAllocator *self) {
     size_t increment = self->small_heap_size * GROWTH_RATE / 100;
     increment = ROUND_TO_NEXT_MULTIPLE(increment, BLOCK_SIZE);
 
-    if (self->small_heap_size + self->large_heap_size + increment > GC_getMemoryLimit()) {
+    if (self->small_heap_size + self->large_heap_size + increment > self->memory_limit) {
         fprintf(stderr, "GC: out of memory\n");
         abort();
     }
@@ -75,7 +77,7 @@ static inline void GlobalAllocator_growLarge(GlobalAllocator *self, size_t incre
     size_t size = (size_t)1 << (size_t)ceil(log2((double)increment));
     size = ROUND_TO_NEXT_MULTIPLE(size, BLOCK_SIZE);
 
-    if (self->small_heap_size + self->large_heap_size + size > GC_getMemoryLimit()) {
+    if (self->small_heap_size + self->large_heap_size + size > self->memory_limit) {
         fprintf(stderr, "GC: out of memory\n");
         abort();
     }
@@ -156,6 +158,31 @@ Block *GC_GlobalAllocator_nextBlock(GlobalAllocator *self) {
     if (block != NULL) return block;
 
     // 7. seriously, no luck
+    fprintf(stderr, "GC: failed to allocate small object (can't shift block from free list)\n");
+    abort();
+}
+
+// TODO: thread safety
+Block *GC_GlobalAllocator_nextFreeBlock(GlobalAllocator *self) {
+    Block *block;
+
+    // 1. exhaust free list:
+    //block = BlockList_shift(&self->free_list);
+    //if (block != NULL) return block;
+
+    // 2. no block? collect!
+    // GC_collect();
+
+    // 3. no more free blocks? grow!
+    if (BlockList_isEmpty(&self->free_list)) {
+        GlobalAllocator_growSmall(self);
+    }
+
+    // 4. get free block!
+    block = BlockList_shift(&self->free_list);
+    if (block != NULL) return block;
+
+    // 5. seriously, no luck
     fprintf(stderr, "GC: failed to allocate small object (can't shift block from free list)\n");
     abort();
 }

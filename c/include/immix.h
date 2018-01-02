@@ -5,7 +5,7 @@
 
 // GC must have been initialized before calling any other GC_ function.
 // Otherwise these functions will segfault the program.
-void GC_init(size_t initial_size);
+void GC_init();
 
 // GC may be deallocated. This will free a few malloc so valgrind doesn't
 // complain. Of course calling any GC_ function thereafter will segfault the
@@ -37,5 +37,11 @@ void GC_collect_once();
 typedef void (*GC_collect_callback_t)(void);
 void GC_register_collect_callback(GC_collect_callback_t);
 void GC_mark_region(void *stack_pointer, void *stack_bottom, const char *source);
+
+// Returns the total memory mapped for the HEAP, in bytes.
+size_t GC_get_memory_use();
+
+// Returns the total memory allocated in the HEAP, in bytes.
+size_t GC_get_heap_usage();
 
 #endif

@@ -18,12 +18,16 @@ typedef struct GC_GlobalAllocator {
     void *large_heap_stop;
 
     ChunkList large_chunk_list;
+
+    size_t memory_limit;
+    size_t allocated_bytes;
 } GlobalAllocator;
 
 void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size);
 void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int atomic);
 void GC_GlobalAllocator_deallocateLarge(GlobalAllocator *self, void *pointer);
 Block *GC_GlobalAllocator_nextBlock(GlobalAllocator *self);
+Block *GC_GlobalAllocator_nextFreeBlock(GlobalAllocator *self);
 void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self);
 
 static inline int GlobalAllocator_inSmallHeap(GlobalAllocator *self, void *pointer) {
@@ -42,6 +46,7 @@ static inline int GlobalAllocator_inHeap(GlobalAllocator *self, void *pointer) {
 #define GlobalAllocator_allocateLarge GC_GlobalAllocator_allocateLarge
 #define GlobalAllocator_deallocateLarge GC_GlobalAllocator_deallocateLarge
 #define GlobalAllocator_nextBlock GC_GlobalAllocator_nextBlock
+#define GlobalAllocator_nextFreeBlock GC_GlobalAllocator_nextFreeBlock
 #define GlobalAllocator_recycleBlocks GC_GlobalAllocator_recycleBlocks
 
 #endif

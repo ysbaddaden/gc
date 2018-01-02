@@ -9,6 +9,7 @@
 #include "local_allocator.h"
 #include "immix.h"
 #include "utils.h"
+#include "options.h"
 
 static GlobalAllocator *GC_global_allocator;
 #define global_allocator GC_global_allocator
@@ -20,7 +21,7 @@ static LocalAllocator *GC_local_allocator;
 static Collector *GC_collector;
 #define collector GC_collector
 
-void GC_init(size_t initial_size) {
+void GC_init() {
     // We could allocate static values instead of using `malloc`, but then the
     // structs would be inlined in the BSS section, along with pointers to the
     // HEAP...
@@ -34,7 +35,7 @@ void GC_init(size_t initial_size) {
         fprintf(stderr, "malloc failed %s\n", strerror(errno));
         abort();
     }
-    GlobalAllocator_init(global_allocator, initial_size);
+    GlobalAllocator_init(global_allocator, GC_initialHeapSize());
 
     local_allocator = malloc(sizeof(LocalAllocator));
     if (local_allocator == NULL) {
@@ -146,10 +147,9 @@ void GC_mark_region(void *stack_pointer, void *stack_bottom, const char *source)
     Collector_markRegion(collector, stack_pointer, stack_bottom, source);
 }
 
-void GC_print_stats() {
-    // SMALL HEAP STATS
-    size_t count = 0;
-    size_t bytes = 0;
+void GC_small_heap_stats(size_t *count, size_t *bytes) {
+    *count = 0;
+    *bytes = 0;
 
     Block *block = global_allocator->small_heap_start;
     Block *stop = global_allocator->small_heap_stop;
@@ -168,8 +168,8 @@ void GC_print_stats() {
                     Object *object = (Object *)(line + offset);
                     if (object->size == 0) break;
 
-                    count += 1;
-                    bytes += object->size - sizeof(Object);
+                    *count += 1;
+                    *bytes += object->size - sizeof(Object);
 
                     offset = offset + object->size;
                 }
@@ -178,21 +178,43 @@ void GC_print_stats() {
 
         block = (Block *)((char *)block + BLOCK_SIZE);
     }
+}
 
-    fprintf(stderr, "\nsmall: count=%zu bytes=%zu -- ", count, bytes);
-
-    // LARGE HEAP STATS
-    count = 0;
-    bytes = 0;
+void GC_large_heap_stats(size_t *count, size_t *bytes) {
+    *count = 0;
+    *bytes = 0;
 
     Chunk *chunk = global_allocator->large_chunk_list.first;
     while (chunk != NULL) {
         if (chunk->allocated) {
-            count += 1;
-            bytes += chunk->object.size - sizeof(Object);
+            *count += 1;
+            *bytes += chunk->object.size - sizeof(Object);
         }
         chunk = chunk->next;
     }
+}
 
-    fprintf(stderr, "large: count=%zu bytes=%zu\n", count, bytes);
+size_t GC_get_memory_use() {
+    return global_allocator->small_heap_size + global_allocator->large_heap_size;
+}
+
+size_t GC_get_heap_usage() {
+    size_t small_count, small_bytes;
+    size_t large_count, large_bytes;
+
+    GC_small_heap_stats(&small_count, &small_bytes);
+    GC_large_heap_stats(&large_count, &large_bytes);
+
+    return small_bytes + large_bytes;
+}
+
+void GC_print_stats() {
+    size_t small_count, small_bytes;
+    size_t large_count, large_bytes;
+
+    GC_small_heap_stats(&small_count, &small_bytes);
+    GC_large_heap_stats(&large_count, &large_bytes);
+
+    fprintf(stderr, "\nGC: small: count=%zu bytes=%zu; large: count=%zu bytes=%zu\n; total count=%zu bytes=%zu\n",
+            small_count, small_bytes, large_count, large_bytes, small_count + large_count, small_bytes + large_bytes);
 }

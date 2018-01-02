@@ -9,16 +9,7 @@ module GC
   @@collector : Fiber?
 
   def self.init : Nil
-    if ptr = LibC.getenv("GC_INITIAL_HEAP_SIZE")
-      initial_size = LibC.atol(ptr)
-    else
-      initial_size = 4 * 1024 * 1024
-    end
-
-    # initial_size = (ENV["GC_INITIAL_HEAP_SIZE"]? || 4 * 1024 * 1024).to_i64
-    # LibC.printf("HEAP=%d\n", initial_size)
-
-    LibC.GC_init(initial_size);
+    LibC.GC_init
     @@collector = spawn(name: "GC_IMMIX_COLLECTOR") { collector_loop }
   end
 
@@ -89,11 +80,8 @@ module GC
   end
 
   def self.stats
-    LibC.GC_print_stats()
-
-    # TODO: stats
     zero = LibC::ULong.new(0)
-    Stats.new(zero, zero, zero, zero, zero)
+    Stats.new(LibC.GC_get_heap_usage, zero, zero, zero, zero)
   end
 
   # :nodoc:

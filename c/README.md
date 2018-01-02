@@ -18,9 +18,9 @@ in the long term.
 
 It's a WORK IN PROGRESS.
 
-The small object space is following the Immix memory layout, minus overflow
-allocations (TODO) and opportunistic evacuation (maybe later, requires precise
-stack tracing).
+The small object space is following the Immix memory layout, minus compaction
+(opportunistic evacuation) which requires a fully precise GC capable to
+perfectly identify references in both allocations and stacks.
 
 The large objects space relies on a mere linked list of splittable chunks. There
 is room for improvement, here. Mostly in indexing of free/allocated chunks for
@@ -29,11 +29,11 @@ quicker allocations and quicker marking.
 Allocators and a collector have been implemented. Thought they appear to be
 correct, they're only efficient during certain workloads. Some workloads, like
 the Crystal compiler, that rapidly allocate many objects and requires the HEAP
-to grow quickly, or keeping a deeply nested objects tree, will respectively
-cause the program to be *very* slow or merely segfault. We need mechanisms to
+to grow quickly may be very slow (the GC will collect too often), or keeping a
+deeply nested object tree will cause a stack overflow. We miss mechanisms to
 prefer growing the HEAP over collecting again and again quickly for little gains
-(very slow) or dispatching marking of nested objects instead of recursively
-marking objects and exhausting the stack (segfault).
+(slooooow) and dispatching marking of nested objects instead of recursively
+marking objects and exhausting the stack (segfaults).
 
 You've been warned!
 

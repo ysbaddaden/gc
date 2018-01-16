@@ -8,4 +8,7 @@ description: |
   A garbage collector for the Crystal language,
   using the Immix memory layout.
 
+scripts:
+  postinstall: make immix.a
+
 license: Apache-2.0

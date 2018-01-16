@@ -1,14 +1,11 @@
-name: immix-cr
+name: immix
 version: 0.1.0
 
 authors:
   - Julien Portalier <julien@portalier.com>
 
 description: |
-  Immix GC in Crystal
-
-development_dependencies:
-  minitest:
-    github: ysbaddaden/minitest.cr
+  A garbage collector for the Crystal language,
+  using the Immix memory layout.
 
 license: Apache-2.0

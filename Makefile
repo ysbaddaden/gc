@@ -1,19 +1,40 @@
 .POSIX:
 
 CRYSTAL = crystal
-CRFLAGS = -Dgc_immix
+CRFLAGS = -Dgc_none --release
 
-test: src/ext/gc_immix_ld.o phony
-	$(CRYSTAL) run test/*_test.cr -D gc_none -- --verbose --chaos --parallel=4
+CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99 -Iinclude
+LDFLAGS = $(PWD)/immix.a -lm
 
-spec: src/ext/gc_immix_ld.o phony
-	$(CRYSTAL) spec $(CRFLAGS)
+OBJECTS = build/immix.o \
+		  build/global_allocator.o \
+		  build/local_allocator.o \
+		  build/collector.o
 
-valgrind:
-	$(CRYSTAL) build spec/gc_spec.cr -o gc_spec $(CRFLAGS)
-	valgrind ./gc_spec
+all: immix.a
 
-src/ext/gc_immix_ld.o: src/ext/gc_immix_ld.c
-	$(CC) -c src/ext/gc_immix_ld.c -o src/ext/gc_immix_ld.o
+immix.a: $(OBJECTS)
+	$(AR) -rc immix.a $(OBJECTS)
+
+build/%.o: src/%.c include/*.h
+	@mkdir -p build
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+samples/http_server: samples/http_server.cr immix.a src/*.cr
+	$(CRYSTAL) build $< -o $@ $(CRFLAGS)
+
+setup: phony
+	[ -f test/greatest.h ] && wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/greatest.h -O test/greatest.h
+	[ -f test/greenest ] && wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/contrib/greenest -O test/greenest
+	chmod +x test/greenest
+
+build/test-runner: immix.a test/*.c test/*.h
+	$(CC) -rdynamic $(CFLAGS) -o build/test-runner test/runner.c $(LDFLAGS)
+
+test: phony build/test-runner
+	./build/test-runner | ./test/greenest
+
+clean: phony
+	rm -rf immix.a build samples/http_server
 
 phony:

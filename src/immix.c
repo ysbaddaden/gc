@@ -208,13 +208,13 @@ size_t GC_get_heap_usage() {
     return small_bytes + large_bytes;
 }
 
-void GC_print_stats() {
-    size_t small_count, small_bytes;
-    size_t large_count, large_bytes;
-
-    GC_small_heap_stats(&small_count, &small_bytes);
-    GC_large_heap_stats(&large_count, &large_bytes);
-
-    fprintf(stderr, "\nGC: small: count=%zu bytes=%zu; large: count=%zu bytes=%zu\n; total count=%zu bytes=%zu\n",
-            small_count, small_bytes, large_count, large_bytes, small_count + large_count, small_bytes + large_bytes);
-}
+//void GC_print_stats() {
+//    size_t small_count, small_bytes;
+//    size_t large_count, large_bytes;
+//
+//    GC_small_heap_stats(&small_count, &small_bytes);
+//    GC_large_heap_stats(&large_count, &large_bytes);
+//
+//    fprintf(stderr, "\nGC: small: count=%zu bytes=%zu; large: count=%zu bytes=%zu\n; total count=%zu bytes=%zu\n",
+//            small_count, small_bytes, large_count, large_bytes, small_count + large_count, small_bytes + large_bytes);
+//}

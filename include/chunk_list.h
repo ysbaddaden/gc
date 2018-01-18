@@ -248,7 +248,7 @@ static inline void ChunkList_validate(ChunkList *self, void *heap_stop) {
         char *actual = (char *)chunk + CHUNK_HEADER_SIZE + chunk->object.size;
 
         if (actual != expected) {
-            fprintf(stderr, "ASSERTION FAILED: chunk->next %p == chunk+header+size %p\n", expected, actual);
+            fprintf(stderr, "ASSERTION FAILED: chunk->next %p == chunk+header+size %p\n", (void *)expected, (void *)actual);
             abort();
         }
 

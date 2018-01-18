@@ -92,7 +92,7 @@ static inline void GlobalAllocator_growLarge(GlobalAllocator *self, size_t incre
     Chunk_init(chunk, size - CHUNK_HEADER_SIZE);
 
     ChunkList_push(&self->large_chunk_list, chunk);
-#ifdef GC_DEBUG
+#ifndef NDEBUG
     ChunkList_validate(&self->large_chunk_list, self->large_heap_stop);
 #endif
 }
@@ -112,7 +112,7 @@ static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
 
             if (object_size <= available) {
                 ChunkList_split(&self->large_chunk_list, chunk, object_size);
-#ifdef GC_DEBUG
+#ifndef NDEBUG
                 ChunkList_validate(&self->large_chunk_list, self->large_heap_stop);
 #endif
                 chunk->allocated = 1;

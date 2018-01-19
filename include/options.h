@@ -46,4 +46,8 @@ static inline size_t GC_maximumHeapSize() {
     return GC_getSizeFromEnvironmentVariable("GC_MAXIMUM_HEAP_SIZE", GC_getMemoryLimit());
 }
 
+static inline size_t GC_freeSpaceDivisor() {
+    return GC_getSizeFromEnvironmentVariable("GC_FREE_SPACE_DIVISOR", GC_FREE_SPACE_DIVISOR);
+}
+
 #endif

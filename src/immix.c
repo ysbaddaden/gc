@@ -195,7 +195,7 @@ void GC_large_heap_stats(size_t *count, size_t *bytes) {
 }
 
 size_t GC_get_memory_use() {
-    return global_allocator->small_heap_size + global_allocator->large_heap_size;
+    return GlobalAllocator_heapSize(global_allocator);
 }
 
 size_t GC_get_heap_usage() {

@@ -20,7 +20,9 @@ typedef struct GC_GlobalAllocator {
     ChunkList large_chunk_list;
 
     size_t memory_limit;
-    size_t allocated_bytes;
+    size_t free_space_divisor;
+    size_t allocated_bytes_since_collect;
+    size_t total_allocated_bytes;
 } GlobalAllocator;
 
 void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size);
@@ -40,6 +42,27 @@ static inline int GlobalAllocator_inLargeHeap(GlobalAllocator *self, void *point
 
 static inline int GlobalAllocator_inHeap(GlobalAllocator *self, void *pointer) {
     return GlobalAllocator_inSmallHeap(self, pointer) || GlobalAllocator_inLargeHeap(self, pointer);
+}
+
+static inline void GlobalAllocator_incrementCounters(GlobalAllocator *self, size_t increment) {
+    self->allocated_bytes_since_collect += increment;
+    self->total_allocated_bytes += increment;
+}
+
+static inline void GlobalAllocator_resetCounters(GlobalAllocator *self) {
+    self->allocated_bytes_since_collect = 0;
+}
+
+static inline size_t GlobalAllocator_allocatedBytesSinceCollect(GlobalAllocator *self) {
+    return self->allocated_bytes_since_collect;
+}
+
+static inline size_t GlobalAllocator_totalAllocatedBytes(GlobalAllocator *self) {
+    return self->total_allocated_bytes;
+}
+
+static inline size_t GlobalAllocator_heapSize(GlobalAllocator *self) {
+    return self->small_heap_size + self->large_heap_size;
 }
 
 #define GlobalAllocator_init GC_GlobalAllocator_init

@@ -25,5 +25,6 @@
 
 #define GC_INITIAL_HEAP_SIZE (4 * 1024 * 1024)
 // #define GC_MAXIMUM_HEAP_SIZE
+#define GC_FREE_SPACE_DIVISOR 3
 
 #endif

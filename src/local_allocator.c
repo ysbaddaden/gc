@@ -127,6 +127,7 @@ void *GC_LocalAllocator_allocateSmall(LocalAllocator *self, size_t size, int ato
 
         if (object != NULL) {
             Object_allocate(object, rsize, atomic);
+            GlobalAllocator_incrementCounters(self->global_allocator, size);
             return Object_mutatorAddress(object);
         }
 

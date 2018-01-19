@@ -221,7 +221,12 @@ void GC_Collector_collect(Collector *self) {
     Collector_markRegion(self, self->bss_start, self->bss_end, ".bss");
     Collector_callCollectCallback(self);
 
+    // TODO: iterate objects for unreachable objects with finalizers
+    //       mark those objects as reachable + as to finalize
+
     Collector_sweep(self);
+
+    GlobalAllocator_resetCounters(self->global_allocator);
 
     // TODO: reset local allocators (block = cursor = limit = NULL)
     //       this is done in GC_collect_once for the time being

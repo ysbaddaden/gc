@@ -15,7 +15,9 @@ void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
     assert(initial_size % BLOCK_SIZE == 0);
 
     self->memory_limit = GC_maximumHeapSize();
-    self->allocated_bytes = 0;
+    self->free_space_divisor = GC_freeSpaceDivisor();
+    self->allocated_bytes_since_collect = 0;
+    self->total_allocated_bytes = 0;
 
     // small object space (immix)
     void *heap_start = GC_mapAndAlign(self->memory_limit, initial_size);
@@ -117,6 +119,7 @@ static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
 #endif
                 chunk->allocated = 1;
                 chunk->object.atomic = atomic;
+                GlobalAllocator_incrementCounters(self, size);
                 return Chunk_mutatorAddress(chunk);
             }
         }
@@ -127,6 +130,19 @@ static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
 
     // unreachable
     return NULL;
+}
+
+// Returns true if we allocated at least 1/Nth of the HEAP memory since the last
+// collection.
+static int GlobalAllocator_shouldCollect(GlobalAllocator *self) {
+    size_t allocated = GlobalAllocator_allocatedBytesSinceCollect(self);
+    size_t total = GlobalAllocator_heapSize(self);
+
+    if (allocated < total / self->free_space_divisor) {
+        DEBUG("skip collect memory=%zu allocated=%zu\n", total, allocated);
+        return 0;
+    }
+    return 1;
 }
 
 // TODO: thread safety
@@ -141,14 +157,16 @@ Block *GC_GlobalAllocator_nextBlock(GlobalAllocator *self) {
     block = BlockList_shift(&self->free_list);
     if (block != NULL) return block;
 
-    // 3. no block? collect!
-    GC_collect();
+    // 3. no block? allocated enough since last collect? collect!
+    if (GlobalAllocator_shouldCollect(self)) {
+        GC_collect();
 
-    // 4. exhaust freshly recycled list:
-    block = BlockList_shift(&self->recyclable_list);
-    if (block != NULL) return block;
+        // 4. exhaust freshly recycled list:
+        block = BlockList_shift(&self->recyclable_list);
+        if (block != NULL) return block;
+    }
 
-    // 5. no more free blocks? grow!
+    // 5. no free blocks? grow!
     if (BlockList_isEmpty(&self->free_list)) {
         GlobalAllocator_growSmall(self);
     }
@@ -167,22 +185,27 @@ Block *GC_GlobalAllocator_nextFreeBlock(GlobalAllocator *self) {
     Block *block;
 
     // 1. exhaust free list:
-    //block = BlockList_shift(&self->free_list);
-    //if (block != NULL) return block;
-
-    // 2. no block? collect!
-    // GC_collect();
-
-    // 3. no more free blocks? grow!
-    if (BlockList_isEmpty(&self->free_list)) {
-        GlobalAllocator_growSmall(self);
-    }
-
-    // 4. get free block!
     block = BlockList_shift(&self->free_list);
     if (block != NULL) return block;
 
-    // 5. seriously, no luck
+    // 2. no block? collect!
+    if (GlobalAllocator_shouldCollect(self)) {
+        GC_collect();
+
+        // 2a. still no free blocks? grow!
+        if (BlockList_isEmpty(&self->free_list)) {
+            GlobalAllocator_growSmall(self);
+        }
+    } else {
+        // 2b. grow
+        GlobalAllocator_growSmall(self);
+    }
+
+    // 3. get free block!
+    block = BlockList_shift(&self->free_list);
+    if (block != NULL) return block;
+
+    // 4. seriously, no luck
     fprintf(stderr, "GC: failed to allocate small object (can't shift block from free list)\n");
     abort();
 }
@@ -197,20 +220,22 @@ void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int a
     if (mutator != NULL) return mutator;
 
     // 2. collect memory
-    GC_collect();
+    if (GlobalAllocator_shouldCollect(self)) {
+        GC_collect();
 
-    // 3. try to allocate (again)
-    mutator = GlobalAllocator_tryAllocateLarge(self, rsize, atomic);
-    if (mutator != NULL) return mutator;
+        // 2a. try to allocate (again)
+        mutator = GlobalAllocator_tryAllocateLarge(self, rsize, atomic);
+        if (mutator != NULL) return mutator;
+    }
 
-    // 4. grow memory
+    // 3. grow memory
     GlobalAllocator_growLarge(self, rsize + sizeof(Chunk));
 
-    // 5. allocate!
+    // 4. allocate!
     mutator = GlobalAllocator_tryAllocateLarge(self, rsize, atomic);
     if (mutator != NULL) return mutator;
 
-    // 6. seriously? no luck.
+    // 5. seriously? no luck.
     fprintf(stderr, "GC: failed to allocate large object size=%zu actual=%zu +metadata=%zu\n",
             size, rsize, sizeof(Chunk));
 

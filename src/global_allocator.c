@@ -94,9 +94,9 @@ static inline void GlobalAllocator_growLarge(GlobalAllocator *self, size_t incre
     Chunk_init(chunk, size - CHUNK_HEADER_SIZE);
 
     ChunkList_push(&self->large_chunk_list, chunk);
-#ifndef NDEBUG
-    ChunkList_validate(&self->large_chunk_list, self->large_heap_stop);
-#endif
+//#ifndef NDEBUG
+//    ChunkList_validate(&self->large_chunk_list, self->large_heap_stop);
+//#endif
 }
 
 static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size_t size, int atomic) {
@@ -114,9 +114,9 @@ static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
 
             if (object_size <= available) {
                 ChunkList_split(&self->large_chunk_list, chunk, object_size);
-#ifndef NDEBUG
-                ChunkList_validate(&self->large_chunk_list, self->large_heap_stop);
-#endif
+//#ifndef NDEBUG
+//                ChunkList_validate(&self->large_chunk_list, self->large_heap_stop);
+//#endif
                 chunk->allocated = 1;
                 chunk->object.atomic = atomic;
                 GlobalAllocator_incrementCounters(self, size);
@@ -283,7 +283,7 @@ void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self) {
 
                 if (LineHeader_isMarked(line_header)) {
                     if (hole != NULL) {
-                        DEBUG("GC: line=%d marked=1 stop=%p\n", line_index, (void *)Block_line(block, line_index));
+                        //DEBUG("GC: line=%d marked=1 stop=%p\n", line_index, (void *)Block_line(block, line_index));
                         hole->limit = Block_line(block, line_index);
                         previous_hole = hole;
                         hole = NULL;
@@ -291,11 +291,11 @@ void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self) {
                         //DEBUG("GC: line=%d marked=1\n", line_index);
                     }
                 } else {
-                    if (hole == NULL) {
-                        DEBUG("GC: line=%d marked=0 skip\n", line_index);
+                    //if (hole == NULL) {
+                    //    DEBUG("GC: line=%d marked=0 skip\n", line_index);
                     //} else {
                     //    DEBUG("GC: line=%d marked=0\n", line_index);
-                    }
+                    //}
                     LineHeader_clear(line_header);
 
                     if (hole == NULL && line_index != LINE_COUNT - 1) {
@@ -308,20 +308,20 @@ void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self) {
                             line_header++;
 
                             LineHeader_clear(line_header);
-#ifndef NDEBUG
-                            // clear free lines: if marking was wrong it will
-                            // corrupt allocations, causing a rapid segfault!
-                            memset(Block_line(block, line_index), 0, LINE_SIZE);
-#endif
+//#ifndef NDEBUG
+//                            // clear free lines: if marking was wrong it will
+//                            // corrupt allocations, causing a rapid segfault!
+//                            memset(Block_line(block, line_index), 0, LINE_SIZE);
+//#endif
                             if (first_free_line_index == INVALID_LINE_INDEX) {
                                 first_free_line_index = line_index;
                             }
                             if (hole == NULL) {
-                                DEBUG("GC: line=%d marked=0 start=%p\n", line_index, (void *)Block_line(block, line_index));
+                                //DEBUG("GC: line=%d marked=0 start=%p\n", line_index, (void *)Block_line(block, line_index));
                                 hole = (Hole *)Block_line(block, line_index);
                                 Hole_init(hole);
-                            } else {
-                                //DEBUG("GC: line=%d marked=0\n", line_index);
+                            //} else {
+                            //    DEBUG("GC: line=%d marked=0\n", line_index);
                             }
                             if (previous_hole != NULL) {
                                 previous_hole->next = hole;
@@ -332,7 +332,7 @@ void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self) {
             }
 
             if (hole != NULL && hole->limit == NULL) {
-                DEBUG("GC: line=126 marked=0 stop=%p\n", (void *)Block_stop(block));
+                //DEBUG("GC: line=126 marked=0 stop=%p\n", (void *)Block_stop(block));
                 hole->limit = Block_stop(block);
             }
 
@@ -346,15 +346,15 @@ void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self) {
                 Block_setRecyclable(block, first_free_line_index);
                 BlockList_push(&self->recyclable_list, block);
 
-#ifdef GC_DEBUG
-                hole = (Hole *)Block_firstFreeLine(block);
-                while (hole != NULL) {
-                    intptr_t size = hole->limit - (char *)hole;
-                    fprintf(stderr, "GC: hole start=%p limit=%p size=%ld next=%p\n",
-                            (void *)hole, (void *)hole->limit, size, (void *)hole->next);
-                    hole = hole->next;
-                }
-#endif
+//#ifdef GC_DEBUG
+//                hole = (Hole *)Block_firstFreeLine(block);
+//                while (hole != NULL) {
+//                    intptr_t size = hole->limit - (char *)hole;
+//                    fprintf(stderr, "GC: hole start=%p limit=%p size=%ld next=%p\n",
+//                            (void *)hole, (void *)hole->limit, size, (void *)hole->next);
+//                    hole = hole->next;
+//                }
+//#endif
             }
         }
 

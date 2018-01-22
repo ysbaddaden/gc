@@ -147,13 +147,13 @@ static inline void Collector_findAndMarkSmallObject(Collector *self, void *point
                         // marking by only marking the starting line.
                         if (object->size <= LINE_SIZE) {
                             // small object: only mark the starting line
-                            DEBUG("GC: mark line=%p\n", (void *)line);
+                            // DEBUG("GC: mark line=%p\n", (void *)line);
                             LineHeader_mark(line_header);
                         } else {
                             // medium object: mark all lines exactly
                             char *limit = (char *)object + object->size;
                             do {
-                                DEBUG("GC: mark line=%p\n", (void *)line);
+                                // DEBUG("GC: mark line=%p\n", (void *)line);
                                 LineHeader_mark(line_header);
                                 line += LINE_SIZE;
                                 line_header++;
@@ -201,14 +201,14 @@ void GC_Collector_markRegion(Collector *self, void *top, void *bottom, const cha
 }
 
 static inline void Collector_sweep(Collector *self) {
-    // FIXME: broken
+    // small objects
     GlobalAllocator_recycleBlocks(self->global_allocator);
 
     // large objects
     ChunkList_sweep(&self->global_allocator->large_chunk_list);
-#ifndef NDEBUG
-    ChunkList_validate(&self->global_allocator->large_chunk_list, self->global_allocator->large_heap_stop);
-#endif
+//#ifndef NDEBUG
+//    ChunkList_validate(&self->global_allocator->large_chunk_list, self->global_allocator->large_heap_stop);
+//#endif
 }
 
 void GC_Collector_collect(Collector *self) {

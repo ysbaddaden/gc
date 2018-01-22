@@ -142,13 +142,13 @@ static inline void Line_update(Block *block, Object *object) {
         assert(offset >= 0);
         assert(offset < LINE_SIZE);
 
-        DEBUG("GC: set first object in line block=%p object=%p line_index=%d offset=%ld\n",
-                (void *)block, (void *)object, line_index, offset);
+        //DEBUG("GC: set first object in line block=%p object=%p line_index=%d offset=%ld\n",
+        //        (void *)block, (void *)object, line_index, offset);
 
         LineHeader_setOffset(line_header, offset);
-    } else {
-        DEBUG("GC: not first object in line block=%p object=%p line_index=%d\n",
-                (void *)block, (void *)object, line_index);
+    //} else {
+    //    DEBUG("GC: not first object in line block=%p object=%p line_index=%d\n",
+    //            (void *)block, (void *)object, line_index);
     }
 }
 

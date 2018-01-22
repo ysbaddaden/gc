@@ -38,6 +38,21 @@ static inline size_t GC_getSizeFromEnvironmentVariable(const char *name, long de
     return default_value;
 }
 
+static inline size_t GC_getIntegerFromEnvironmentVariable(const char *name, long default_value) {
+    char *str = getenv(name);
+
+    if (str != NULL) {
+        size_t value = strtol(str, NULL, 10);
+
+        if ((errno == ERANGE && (value == LONG_MAX || value == LONG_MIN))
+                || (errno != 0 && value == 0)) {
+            fprintf(stderr, "GC: ignoring invalid %s value", name);
+            return default_value;
+        }
+    }
+    return default_value;
+}
+
 static inline size_t GC_initialHeapSize() {
     return GC_getSizeFromEnvironmentVariable("GC_INITIAL_HEAP_SIZE", GC_INITIAL_HEAP_SIZE);
 }
@@ -47,7 +62,7 @@ static inline size_t GC_maximumHeapSize() {
 }
 
 static inline size_t GC_freeSpaceDivisor() {
-    return GC_getSizeFromEnvironmentVariable("GC_FREE_SPACE_DIVISOR", GC_FREE_SPACE_DIVISOR);
+    return GC_getIntegerFromEnvironmentVariable("GC_FREE_SPACE_DIVISOR", GC_FREE_SPACE_DIVISOR);
 }
 
 #endif

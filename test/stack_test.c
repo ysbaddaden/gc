@@ -8,8 +8,6 @@ TEST test_Stack_init() {
     ASSERT_EQ(0, Stack_size(&stack));
     ASSERT(Stack_isEmpty(&stack));
 
-    Stack_dispose(&stack);
-
     PASS();
 }
 
@@ -50,8 +48,6 @@ TEST test_Stack_push_pop() {
     ASSERT_EQ_FMT(NULL, sp, "%p");
     ASSERT_EQ_FMT(NULL, bottom, "%p");
 
-    Stack_dispose(&stack);
-
     PASS();
 }
 
@@ -76,8 +72,6 @@ TEST test_Stack_grows_limitless() {
 
     ASSERT_EQ(0, Stack_size(&stack));
     ASSERT_FALSE(Stack_pop(&stack, &sp, &bottom));
-
-    Stack_dispose(&stack);
 
     PASS();
 }

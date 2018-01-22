@@ -16,6 +16,8 @@ void GC_Collector_init(Collector *self, GlobalAllocator *allocator) {
     self->global_allocator = allocator;
     self->collect_callback = NULL;
 
+    Stack_init(&self->roots, GC_getMemoryLimit());
+
     // DATA section (initialized constants):
     self->data_start = &__data_start;
     self->data_end = &__bss_start;
@@ -222,15 +224,11 @@ void GC_Collector_collect(Collector *self) {
     Collector_unmarkSmallObjects(self);
     Collector_unmarkLargeObjects(self);
 
-    Stack_init(&self->roots, GC_getMemoryLimit());
-
     Collector_addRoots(self, self->data_start, self->data_end, ".data");
     Collector_addRoots(self, self->bss_start, self->bss_end, ".bss");
     Collector_callCollectCallback(self);
 
     Collector_mark(self);
-
-    Stack_dispose(&self->roots);
 
     // TODO: iterate objects for unreachable objects with finalizers
     //       mark those objects as reachable + as to finalize

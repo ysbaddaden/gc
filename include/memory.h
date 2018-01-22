@@ -16,17 +16,16 @@
 #define MEM_OFFSET (0)
 
 static inline void *GC_map(size_t memory_limit) {
-    return mmap(NULL, memory_limit, MEM_PROT, MEM_FLAGS, MEM_FD, MEM_OFFSET);
+    void *addr = mmap(NULL, memory_limit, MEM_PROT, MEM_FLAGS, MEM_FD, MEM_OFFSET);
+    if (addr == MAP_FAILED) {
+        printf("GC: mmap error: %s\n", strerror(errno));
+        abort();
+    }
+    return addr;
 }
 
 static inline void *GC_mapAndAlign(size_t memory_limit, size_t alignment_size) {
     void *start = GC_map(memory_limit);
-
-    if (start == (void *)-1) {
-        printf("GC: mmap error: %s\n", strerror(errno));
-        abort();
-    }
-
     size_t alignment_mask = ~(alignment_size - 1);
 
     if (((uintptr_t)start & alignment_mask) != (uintptr_t)start) {

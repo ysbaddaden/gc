@@ -9,7 +9,6 @@ typedef struct {
 } Stack;
 
 static void Stack_init(Stack *, size_t) __attribute__((__unused__));
-static void Stack_dispose(Stack *) __attribute__((__unused__));
 static void Stack_push(Stack *, void *, void *) __attribute__((__unused__));
 static int Stack_pop(Stack *, void **, void **) __attribute__((__unused__));
 static size_t Stack_size(Stack *) __attribute__((__unused__));
@@ -17,10 +16,6 @@ static size_t Stack_size(Stack *) __attribute__((__unused__));
 static void Stack_init(Stack *self, size_t capacity) {
     self->buffer = GC_map(sizeof(void *) * capacity * 2);
     self->cursor = self->buffer;
-}
-
-static void Stack_dispose(Stack *self) {
-    munmap(self->buffer, self->cursor - self->buffer);
 }
 
 static size_t Stack_size(Stack *self) {

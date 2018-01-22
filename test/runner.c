@@ -10,6 +10,7 @@
 #include "line_header_test.c"
 #include "block_test.c"
 #include "block_list_test.c"
+#include "stack_test.c"
 #include "immix_test.c"
 
 void GC_collect() {
@@ -37,6 +38,7 @@ int main(int argc, char *argv[]) {
     RUN_SUITE(LineHeaderSuite);
     RUN_SUITE(BlockSuite);
     RUN_SUITE(BlockListSuite);
+    RUN_SUITE(StackSuite);
 
     // public api
     RUN_SUITE(ImmixSuite);

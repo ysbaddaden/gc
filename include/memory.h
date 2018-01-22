@@ -15,8 +15,12 @@
 #define MEM_FD (-1)
 #define MEM_OFFSET (0)
 
+static inline void *GC_map(size_t memory_limit) {
+    return mmap(NULL, memory_limit, MEM_PROT, MEM_FLAGS, MEM_FD, MEM_OFFSET);
+}
+
 static inline void *GC_mapAndAlign(size_t memory_limit, size_t alignment_size) {
-    void *start = mmap(NULL, memory_limit, MEM_PROT, MEM_FLAGS, MEM_FD, MEM_OFFSET);
+    void *start = GC_map(memory_limit);
 
     if (start == (void *)-1) {
         printf("GC: mmap error: %s\n", strerror(errno));

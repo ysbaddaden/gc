@@ -143,8 +143,8 @@ void GC_register_collect_callback(collect_callback_t collect_callback) {
     Collector_registerCollectCallback(collector, collect_callback);
 }
 
-void GC_mark_region(void *stack_pointer, void *stack_bottom, const char *source) {
-    Collector_markRegion(collector, stack_pointer, stack_bottom, source);
+void GC_add_roots(void *stack_pointer, void *stack_bottom, const char *source) {
+    Collector_addRoots(collector, stack_pointer, stack_bottom, source);
 }
 
 void GC_small_heap_stats(size_t *count, size_t *bytes) {

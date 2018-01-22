@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "collector.h"
 #include "line_header.h"
+#include "memory.h"
 #include "utils.h"
 
 extern char __data_start[];
@@ -65,15 +66,13 @@ static inline void Collector_unmarkLargeObjects(Collector *self) {
 }
 
 static inline void Collector_scanObject(Collector *self, Object *object) {
-    // Object_mark(object);
-
     DEBUG("GC: mark ptr=%p size=%zu atomic=%d\n",
             Object_mutatorAddress(object), object->size, object->atomic);
 
     if (!object->atomic) {
         void *sp = Object_mutatorAddress(object);
         void *bottom = (char*)object + object->size;
-        Collector_markRegion(self, sp, bottom, "object");
+        Stack_push(&self->roots, sp, bottom);
     }
 }
 
@@ -174,29 +173,35 @@ static inline void Collector_findAndMarkSmallObject(Collector *self, void *point
     }
 }
 
-void GC_Collector_markRegion(Collector *self, void *top, void *bottom, const char *source) {
+void GC_Collector_addRoots(Collector *self, void *top, void *bottom, const char *source) {
     DEBUG("GC: mark region top=%p bottom=%p source=%s\n", top, bottom, source);
     assert(top <= bottom);
+    Stack_push(&self->roots, top, bottom);
+}
 
-    //ChunkList *small_chunk_list = &self->global_allocator->small_chunk_list;
-    ChunkList *large_chunk_list = &self->global_allocator->large_chunk_list;
+void GC_Collector_mark(Collector *self) {
     Chunk *chunk;
+    ChunkList *large_chunk_list = &self->global_allocator->large_chunk_list;
 
-    void *sp = top;
-    while (sp < bottom) {
-        // dereference stack pointer's value as heap pointer:
-        void *pointer = (void *)(*(uintptr_t *)(sp));
+    void *sp;
+    void *bottom;
 
-        // search chunk for pointer (may be inner pointer):
-        if (GlobalAllocator_inSmallHeap(self->global_allocator, pointer)) {
-            Collector_findAndMarkSmallObject(self, pointer);
-        } else if (GlobalAllocator_inLargeHeap(self->global_allocator, pointer)) {
-            chunk = ChunkList_find(large_chunk_list, pointer);
-            Collector_markChunk(self, chunk);
+    while (Stack_pop(&self->roots, &sp, &bottom)) {
+        while (sp < bottom) {
+            // dereference stack pointer's value as heap pointer:
+            void *pointer = (void *)(*(uintptr_t *)(sp));
+
+            // search chunk for pointer (may be inner pointer):
+            if (GlobalAllocator_inSmallHeap(self->global_allocator, pointer)) {
+                Collector_findAndMarkSmallObject(self, pointer);
+            } else if (GlobalAllocator_inLargeHeap(self->global_allocator, pointer)) {
+                chunk = ChunkList_find(large_chunk_list, pointer);
+                Collector_markChunk(self, chunk);
+            }
+
+            // try next stack pointer
+            sp = (char*)sp + sizeof(void *);
         }
-
-        // try next stack pointer
-        sp = (char*)sp + sizeof(void *);
     }
 }
 
@@ -217,9 +222,15 @@ void GC_Collector_collect(Collector *self) {
     Collector_unmarkSmallObjects(self);
     Collector_unmarkLargeObjects(self);
 
-    Collector_markRegion(self, self->data_start, self->data_end, ".data");
-    Collector_markRegion(self, self->bss_start, self->bss_end, ".bss");
+    Stack_init(&self->roots, GC_getMemoryLimit());
+
+    Collector_addRoots(self, self->data_start, self->data_end, ".data");
+    Collector_addRoots(self, self->bss_start, self->bss_end, ".bss");
     Collector_callCollectCallback(self);
+
+    Collector_mark(self);
+
+    Stack_dispose(&self->roots);
 
     // TODO: iterate objects for unreachable objects with finalizers
     //       mark those objects as reachable + as to finalize

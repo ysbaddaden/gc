@@ -12,7 +12,7 @@ lib LibC
   alias GC_CollectCallbackT = ->
   fun GC_register_collect_callback(GC_CollectCallbackT) : Int
   fun GC_collect_once() : Void
-  fun GC_mark_region(Void*, Void*, Char*) : Void
+  fun GC_add_roots(Void*, Void*, Char*) : Void
 
   #fun GC_print_stats() : Void
   fun GC_get_memory_use() : SizeT

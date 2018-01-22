@@ -116,7 +116,7 @@ module GC
 
   # :nodoc:
   def self.push_stack(stack_top, stack_bottom)
-    LibC.GC_mark_region(stack_top, stack_bottom, "fiber")
+    LibC.GC_add_roots(stack_top, stack_bottom, "fiber")
   end
 
   # :nodoc:

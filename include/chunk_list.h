@@ -26,6 +26,12 @@ static inline void Chunk_init(Chunk *chunk, size_t size) {
     chunk->object.atomic = 0;
 }
 
+static inline void Chunk_allocate(Chunk *self, int atomic) {
+    self->allocated = 1;
+    self->object.atomic = atomic;
+    self->object.finalizer = NULL;
+}
+
 // Returns the chunk size, counting the chunk and object metadata and the
 // mutator size.
 static inline int Chunk_size(Chunk *chunk) {

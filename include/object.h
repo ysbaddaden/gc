@@ -4,21 +4,25 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef void (*finalizer_t)(void*);
+
 typedef struct {
     size_t size;
+    finalizer_t finalizer;
     uint8_t marked;
     uint8_t atomic;
 } Object;
 
-static inline void Object_init(Object* object) {
-    object->size = 0;
-    object->marked = 0;
-    object->atomic = 0;
-}
+//static inline void Object_init(Object* object) {
+//    object->size = 0;
+//    object->marked = 0;
+//    object->atomic = 0;
+//}
 
 static inline void Object_allocate(Object* object, size_t size, int atomic) {
     object->size = size;
     object->atomic = atomic;
+    object->finalizer = NULL;
 }
 
 static inline void* Object_mutatorAddress(Object* object) {
@@ -45,6 +49,21 @@ static inline size_t Object_mark(Object* object) {
 
 static inline size_t Object_unmark(Object* object) {
     return object->marked = 0;
+}
+
+static inline int Object_hasFinalizer(Object *self) {
+    return self->finalizer != NULL;
+}
+
+static inline void Object_setFinalizer(Object *self, finalizer_t callback) {
+    assert(self->finalizer == NULL);
+    self->finalizer = callback;
+}
+
+static inline void Object_runThenClearFinalizer(Object *self) {
+    assert(self->finalizer != NULL);
+    self->finalizer(Object_mutatorAddress(self));
+    self->finalizer = NULL;
 }
 
 static inline size_t Object_contains(Object* object, char *pointer) {

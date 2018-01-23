@@ -18,13 +18,12 @@ lib LibC
   fun GC_get_memory_use() : SizeT
   fun GC_get_heap_usage() : SizeT
 
-  # alias FinalizerT = Void* -> Nil
-  # fun GC_register_finalizer(Void*, FinalizerT) : Int
+  alias GC_FinalizerT = Void* -> Nil
+  fun GC_register_finalizer(Void*, GC_FinalizerT) : Int
 
   {% if flag?(:linux) && flag?(:gnu) %}
     $__libc_stack_end : Void*
   {% end %}
 
   fun abort() : Void
-  fun atol(Char*) : Long
 end

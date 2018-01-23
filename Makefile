@@ -3,7 +3,7 @@
 CRYSTAL = crystal
 CRFLAGS = -Dgc_none --release
 
-CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99 -Iinclude
+CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99 -Iinclude -funwind-tables
 LDFLAGS = $(PWD)/immix.a -lm
 
 OBJECTS = build/immix.o \
@@ -32,7 +32,7 @@ build/test-runner: immix.a test/*.c test/*.h
 	$(CC) -rdynamic $(CFLAGS) -o build/test-runner test/runner.c $(LDFLAGS)
 
 test: phony build/test-runner
-	./build/test-runner | ./test/greenest
+	./build/test-runner
 
 clean: phony
 	rm -rf immix.a build samples/http_server

@@ -117,8 +117,7 @@ static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
 //#ifndef NDEBUG
 //                ChunkList_validate(&self->large_chunk_list, self->large_heap_stop);
 //#endif
-                chunk->allocated = 1;
-                chunk->object.atomic = atomic;
+                Chunk_allocate(chunk, atomic);
                 GlobalAllocator_incrementCounters(self, size);
                 return Chunk_mutatorAddress(chunk);
             }

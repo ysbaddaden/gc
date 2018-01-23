@@ -204,23 +204,68 @@ static inline void Collector_sweep(Collector *self) {
 //#endif
 }
 
+static inline void Collector_finalizeSmallObjects(Collector *self) {
+    Block *block = self->global_allocator->small_heap_start;
+    Block *stop = self->global_allocator->small_heap_stop;
+
+    while (block < stop) {
+        char *line_headers = Block_lineHeaders(block);
+
+        for (int line_index = 0; line_index < LINE_COUNT; line_index++) {
+            char *line_header = line_headers + line_index;
+
+            if (LineHeader_containsObject(line_header)) {
+                char *line = Block_line(block, line_index);
+                int offset = LineHeader_getOffset(line_header);
+
+                while (offset < LINE_SIZE) {
+                    Object *object = (Object *)(line + offset);
+                    if (object->size == 0) break;
+
+                    if (!Object_isMarked(object) && Object_hasFinalizer(object)) {
+                        Object_runThenClearFinalizer(object);
+                    }
+                    offset += object->size;
+                }
+            }
+        }
+
+        block = (Block *)((char *)block + BLOCK_SIZE);
+    }
+}
+
+static inline void Collector_finalizeLargeObjects(Collector *self) {
+    Chunk *chunk = self->global_allocator->large_chunk_list.first;
+    while (chunk != NULL) {
+        Object *object = &chunk->object;
+        if (!Object_isMarked(object) && Object_hasFinalizer(object)) {
+            Object_runThenClearFinalizer(object);
+        }
+        chunk = chunk->next;
+    }
+}
+
 void GC_Collector_collect(Collector *self) {
     DEBUG("GC: collect start\n");
 
+    // 1. unmark all objects
     Collector_unmarkSmallObjects(self);
     Collector_unmarkLargeObjects(self);
 
+    // 2. collect stack roots
     Collector_addRoots(self, GC_DATA_START, GC_DATA_END, ".data");
     Collector_addRoots(self, GC_BSS_START, GC_BSS_END, ".bss");
     Collector_callCollectCallback(self);
 
+    // 3. search reachable objects to mark (recursively)
     Collector_mark(self);
 
-    // TODO: iterate objects for unreachable objects with finalizers
-    //       mark those objects as reachable + as to finalize
+    // 4. finalize unreachable objects
+    Collector_finalizeSmallObjects(self);
+    Collector_finalizeLargeObjects(self);
 
+    // 5. cleanup
     Collector_sweep(self);
-
     GlobalAllocator_resetCounters(self->global_allocator);
 
     // TODO: reset local allocators (block = cursor = limit = NULL)

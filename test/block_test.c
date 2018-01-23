@@ -69,7 +69,7 @@ TEST test_Block_firstFreeLine() {
 
 TEST test_Block_lineHeaders() {
     Block *block = malloc(BLOCK_SIZE);
-    ASSERT_EQ((char *)block + sizeof(Object), Block_lineHeaders(block));
+    ASSERT_EQ(block->line_headers, Block_lineHeaders(block));
     PASS();
 }
 

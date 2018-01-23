@@ -68,12 +68,11 @@ module GC
     add_finalizer_impl(object)
   end
 
-  def self.add_finalizer_impl(object : T) forall T
-    # TODO: register finalizers
-    # LibC.GC_register_finalizer(object.as(Void*), ->(obj : Void*) {
-    #   obj.as(T).finalize
-    #   nil
-    # })
+  private def self.add_finalizer_impl(object : T) forall T
+    LibC.GC_register_finalizer(object.as(Void*), ->(obj : Void*) {
+      obj.as(T).finalize
+      nil
+    })
   end
 
   def self.add_finalizer(object)

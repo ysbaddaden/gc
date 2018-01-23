@@ -134,6 +134,11 @@ void GC_free(void *pointer) {
     }
 }
 
+void GC_register_finalizer(void *pointer, finalizer_t callback) {
+    Object *object = (Object *)pointer - 1;
+    Object_setFinalizer(object, callback);
+}
+
 void GC_collect_once() {
     Collector_collect(collector);
     LocalAllocator_reset(GC_local_allocator);

@@ -259,6 +259,7 @@ void GC_Collector_collect(Collector *self) {
 
     // 3. search reachable objects to mark (recursively)
     Collector_mark(self);
+    GlobalAllocator_resetCounters(self->global_allocator);
 
     // 4. finalize unreachable objects
     Collector_finalizeSmallObjects(self);
@@ -266,7 +267,6 @@ void GC_Collector_collect(Collector *self) {
 
     // 5. cleanup
     Collector_sweep(self);
-    GlobalAllocator_resetCounters(self->global_allocator);
 
     // TODO: reset local allocators (block = cursor = limit = NULL)
     //       this is done in GC_collect_once for the time being

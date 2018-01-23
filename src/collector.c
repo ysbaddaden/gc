@@ -7,24 +7,10 @@
 #include "memory.h"
 #include "utils.h"
 
-extern char __data_start[];
-extern char __bss_start[];
-extern char _end[];
-
-// TODO: support various platforms (only linux-gnu for now)
 void GC_Collector_init(Collector *self, GlobalAllocator *allocator) {
     self->global_allocator = allocator;
     self->collect_callback = NULL;
-
     Stack_init(&self->roots, GC_getMemoryLimit());
-
-    // DATA section (initialized constants):
-    self->data_start = &__data_start;
-    self->data_end = &__bss_start;
-
-    // BSS section (uninitialized constants):
-    self->bss_start = &__bss_start;
-    self->bss_end = &_end;
 }
 
 static inline void Collector_unmarkSmallObjects(Collector *self) {
@@ -224,8 +210,8 @@ void GC_Collector_collect(Collector *self) {
     Collector_unmarkSmallObjects(self);
     Collector_unmarkLargeObjects(self);
 
-    Collector_addRoots(self, self->data_start, self->data_end, ".data");
-    Collector_addRoots(self, self->bss_start, self->bss_end, ".bss");
+    Collector_addRoots(self, GC_DATA_START, GC_DATA_END, ".data");
+    Collector_addRoots(self, GC_BSS_START, GC_BSS_END, ".bss");
     Collector_callCollectCallback(self);
 
     Collector_mark(self);

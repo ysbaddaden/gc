@@ -10,10 +10,6 @@ typedef struct GC_Collector {
     GlobalAllocator *global_allocator;
     collect_callback_t collect_callback;
     Stack roots;
-    void *data_start;
-    void *data_end;
-    void *bss_start;
-    void *bss_end;
 } Collector;
 
 void GC_Collector_init(Collector *self, GlobalAllocator *allocator);

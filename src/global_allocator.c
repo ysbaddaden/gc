@@ -247,6 +247,10 @@ void GC_GlobalAllocator_deallocateLarge(GlobalAllocator *self, void *pointer) {
     Chunk *chunk = (Chunk *)pointer - 1;
     chunk->allocated = (uint8_t)0;
 
+    if (Object_hasFinalizer(&chunk->object)) {
+        Object_runThenClearFinalizer(&chunk->object);
+    }
+
     // TODO: merge with next free chunks (?)
 }
 

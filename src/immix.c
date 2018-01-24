@@ -119,6 +119,11 @@ void* GC_realloc(void *pointer, size_t size) {
     // reallocate
     void *new_pointer = GC_malloc_with_atomic(size, object->atomic);
     memcpy(new_pointer, pointer, available);
+
+    if (Object_hasFinalizer(object)) {
+        Object *new_object = (Object *)((char *)new_pointer - sizeof(Object));
+        Object_moveFinalizer(object, new_object);
+    }
     DEBUG("GC: realloc old=%p new=%p size=%zu atomic=%d\n", pointer, new_pointer, size, object->atomic);
 
     GC_free(pointer);

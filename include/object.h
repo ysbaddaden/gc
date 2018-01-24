@@ -60,6 +60,12 @@ static inline void Object_setFinalizer(Object *self, finalizer_t callback) {
     self->finalizer = callback;
 }
 
+static inline void Object_moveFinalizer(Object *self, Object *dest) {
+    assert(self->finalizer != NULL);
+    dest->finalizer = self->finalizer;
+    self->finalizer = NULL;
+}
+
 static inline void Object_runThenClearFinalizer(Object *self) {
     assert(self->finalizer != NULL);
     self->finalizer(Object_mutatorAddress(self));

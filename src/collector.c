@@ -65,7 +65,7 @@ static inline void Collector_scanObject(Collector *self, Object *object) {
 }
 
 static inline void Collector_markChunk(Collector *self, Chunk *chunk) {
-    if (chunk != NULL && chunk->allocated) {
+    if (chunk != NULL && Chunk_isAllocated(chunk)) {
         Object *object = &chunk->object;
 
         if (!Object_isMarked(object)) {
@@ -237,9 +237,8 @@ static inline void Collector_finalizeSmallObjects(Collector *self) {
 static inline void Collector_finalizeLargeObjects(Collector *self) {
     Chunk *chunk = self->global_allocator->large_chunk_list.first;
     while (chunk != NULL) {
-        Object *object = &chunk->object;
-        if (!Object_isMarked(object) && Object_hasFinalizer(object)) {
-            Object_runThenClearFinalizer(object);
+        if (Chunk_isAllocated(chunk) && !Chunk_isMarked(chunk) && Object_hasFinalizer(&chunk->object)) {
+            Object_runThenClearFinalizer(&chunk->object);
         }
         chunk = chunk->next;
     }

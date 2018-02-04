@@ -148,7 +148,7 @@ TEST test_ChunkList_split() {
     //   [size=960 - CHUNK_HEADER_SIZE * 2]    =928
     // ]
     Chunk *chunk2 = ChunkList_split(&list, chunk1, 64);
-    ASSERT_EQ_FMT((char *)chunk1 + CHUNK_HEADER_SIZE + 64, (char *)chunk2, "%p");
+    ASSERT_EQ((char *)chunk1 + CHUNK_HEADER_SIZE + 64, (char *)chunk2);
 
     ASSERT_EQ_FMT((size_t)64, chunk1->object.size, "%zu");
     ASSERT_EQ_FMT((size_t)960 - CHUNK_HEADER_SIZE * 2, chunk2->object.size, "%zu");
@@ -160,7 +160,7 @@ TEST test_ChunkList_split() {
     //   3. [size=448 - CHUNK_HEADER_SIZE * 3] =400
     // ]
     Chunk *chunk3 = ChunkList_split(&list, chunk2, 512);
-    ASSERT_EQ_FMT((char *)chunk2 + CHUNK_HEADER_SIZE + 512, (char *)chunk3, "%p");
+    ASSERT_EQ((char *)chunk2 + CHUNK_HEADER_SIZE + 512, (char *)chunk3);
 
     ASSERT_EQ_FMT((size_t)64, chunk1->object.size, "%zu");
     ASSERT_EQ_FMT((size_t)512, chunk2->object.size, "%zu");
@@ -174,7 +174,7 @@ TEST test_ChunkList_split() {
     //   3. [size=448 - CHUNK_HEADER_SIZE * 3] =400
     // ]
     Chunk *chunk4 = ChunkList_split(&list, chunk2, 64);
-    ASSERT_EQ_FMT((char *)chunk2 + CHUNK_HEADER_SIZE + 64, (char *)chunk4, "%p");
+    ASSERT_EQ((char *)chunk2 + CHUNK_HEADER_SIZE + 64, (char *)chunk4);
 
     // can't split chunk4 (remaining space below minimum):
     Chunk *chunk5 = ChunkList_split(&list, chunk4, chunk4->object.size - CHUNK_MIN_SIZE + sizeof(uintptr_t));
@@ -193,9 +193,9 @@ TEST test_ChunkList_split() {
     ASSERT_EQ_FMT((size_t)448 - CHUNK_HEADER_SIZE * 3, chunk3->object.size, "%zu");
 
     // it inserted chunks correctly:
-    ASSERT_EQ_FMT((char *)chunk2, (char *)chunk1->next, "%p");
-    ASSERT_EQ_FMT((char *)chunk4, (char *)chunk2->next, "%p");
-    ASSERT_EQ_FMT((char *)chunk3, (char *)chunk4->next, "%p");
+    ASSERT_EQ((char *)chunk2, (char *)chunk1->next);
+    ASSERT_EQ((char *)chunk4, (char *)chunk2->next);
+    ASSERT_EQ((char *)chunk3, (char *)chunk4->next);
     ASSERT(chunk3->next == NULL);
     ASSERT_EQ(chunk3, list.last);
 
@@ -240,7 +240,7 @@ TEST test_ChunkList_merge() {
     Chunk *chunk7 = (Chunk *)(heap + 768); Chunk_init(chunk7, size); ChunkList_push(&list, chunk7);
     Chunk *chunk8 = (Chunk *)(heap + 896); Chunk_init(chunk8, size); ChunkList_push(&list, chunk8);
 
-    ASSERT_EQ_FMT(heap + 1024, ChunkList_limit(&list), "%p");
+    ASSERT_EQ(heap + 1024, ChunkList_limit(&list));
 
     ChunkList_merge(&list, chunk1, chunk3, 1);
     ASSERT_EQ(chunk3, chunk1->next);
@@ -271,7 +271,7 @@ TEST test_ChunkList_sweep() {
     ChunkList list;
     ChunkList_clear(&list);
 
-    ASSERT_EQ_FMT(NULL, ChunkList_limit(&list), "%p");
+    ASSERT_EQ(NULL, ChunkList_limit(&list));
 
     size_t size = 128 - CHUNK_HEADER_SIZE;
     Chunk *chunk1 = (Chunk *)(heap +   0); Chunk_init(chunk1, size); ChunkList_push(&list, chunk1);
@@ -283,7 +283,7 @@ TEST test_ChunkList_sweep() {
     Chunk *chunk7 = (Chunk *)(heap + 768); Chunk_init(chunk7, size); ChunkList_push(&list, chunk7);
     Chunk *chunk8 = (Chunk *)(heap + 896); Chunk_init(chunk8, size); ChunkList_push(&list, chunk8);
 
-    ASSERT_EQ_FMT(heap + 1024, ChunkList_limit(&list), "%p");
+    ASSERT_EQ(heap + 1024, ChunkList_limit(&list));
 
     chunk1->allocated = 1;
     chunk2->allocated = 1;

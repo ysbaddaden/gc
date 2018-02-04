@@ -12,9 +12,9 @@ static inline size_t GC_getSizeFromEnvironmentVariable(const char *name, long de
 
     if (str != NULL) {
         char *endptr;
-        size_t value = strtol(str, &endptr, 10);
+        size_t value = strtoul(str, &endptr, 10);
 
-        if ((errno == ERANGE && (value == LONG_MAX || value == LONG_MIN))
+        if ((errno == ERANGE && (value == ULONG_MAX || value == 0))
                 || (errno != 0 && value == 0)
                 || endptr == str) {
             fprintf(stderr, "GC: ignoring invalid %s value", name);
@@ -42,9 +42,9 @@ static inline size_t GC_getIntegerFromEnvironmentVariable(const char *name, long
     char *str = getenv(name);
 
     if (str != NULL) {
-        size_t value = strtol(str, NULL, 10);
+        size_t value = strtoul(str, NULL, 10);
 
-        if ((errno == ERANGE && (value == LONG_MAX || value == LONG_MIN))
+        if ((errno == ERANGE && (value == ULONG_MAX || value == 0))
                 || (errno != 0 && value == 0)) {
             fprintf(stderr, "GC: ignoring invalid %s value", name);
             return default_value;

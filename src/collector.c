@@ -161,7 +161,7 @@ static inline void Collector_findAndMarkSmallObject(Collector *self, void *point
     }
 }
 
-void GC_Collector_addRoots(Collector *self, void *top, void *bottom, const char *source) {
+void GC_Collector_addRoots(Collector *self, void *top, void *bottom, __attribute__((__unused__)) const char *source) {
     DEBUG("GC: mark region top=%p bottom=%p source=%s\n", top, bottom, source);
     assert(top <= bottom);
     Stack_push(&self->roots, top, bottom);

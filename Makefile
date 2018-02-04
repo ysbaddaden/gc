@@ -3,7 +3,7 @@
 CRYSTAL = crystal
 CRFLAGS = -Dgc_none --release
 
-CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -pedantic -std=c99 -Iinclude -funwind-tables
+CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -Wextra -pedantic -std=c99 -Iinclude -funwind-tables
 LDFLAGS = $(PWD)/immix.a -lm
 
 OBJECTS = build/immix.o \

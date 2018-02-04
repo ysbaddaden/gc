@@ -239,7 +239,7 @@ void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int a
 }
 
 // TODO: thread safety
-void GC_GlobalAllocator_deallocateLarge(GlobalAllocator *self, void *pointer) {
+void GC_GlobalAllocator_deallocateLarge(__attribute__((__unused__)) GlobalAllocator *self, void *pointer) {
     Chunk *chunk = (Chunk *)pointer - 1;
     chunk->allocated = (uint8_t)0;
 

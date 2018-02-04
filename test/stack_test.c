@@ -58,7 +58,7 @@ TEST test_Stack_grows_limitless() {
     int a = 0;
     int b = 1;
 
-    for (int i = 1; i < 1000000; ++i) {
+    for (size_t i = 1; i < 1000000; ++i) {
         Stack_push(&stack, &a, &b);
         ASSERT_EQ(i, Stack_size(&stack));
     }
@@ -66,7 +66,7 @@ TEST test_Stack_grows_limitless() {
 
     void *sp;
     void *bottom;
-    for (int i = 1; i < 1000000; ++i) {
+    for (size_t i = 1; i < 1000000; ++i) {
         ASSERT(Stack_pop(&stack, &sp, &bottom));
     }
 

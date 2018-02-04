@@ -9,7 +9,8 @@ LDFLAGS = $(PWD)/immix.a -lm
 OBJECTS = build/immix.o \
 		  build/global_allocator.o \
 		  build/local_allocator.o \
-		  build/collector.o
+		  build/collector.o \
+		  build/hash.o
 
 all: immix.a
 
@@ -32,9 +33,12 @@ build/test-runner: immix.a test/*.c test/*.h
 	$(CC) -rdynamic $(CFLAGS) -o build/test-runner test/runner.c $(LDFLAGS)
 
 test: phony build/test-runner
-	./build/test-runner
+	./build/test-runner $(TEST)
 
 clean: phony
 	rm -rf immix.a build samples/http_server
+
+tasks: phony
+	egrep 'TODO|FIXME|OPTIMIZE' include/*.h src/*.c
 
 phony:

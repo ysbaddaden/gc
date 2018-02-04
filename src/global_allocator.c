@@ -131,9 +131,9 @@ static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
     return NULL;
 }
 
-// Returns true if we allocated at least 1/Nth of the HEAP memory since the last
-// collection.
-static int GlobalAllocator_shouldCollect(GlobalAllocator *self) {
+// Collects memory if we allocated at least 1/Nth of the HEAP memory since the
+// last collection.
+static int GlobalAllocator_tryCollect(GlobalAllocator *self) {
     size_t allocated = GlobalAllocator_allocatedBytesSinceCollect(self);
     size_t total = GlobalAllocator_heapSize(self);
 
@@ -141,6 +141,8 @@ static int GlobalAllocator_shouldCollect(GlobalAllocator *self) {
         DEBUG("skip collect memory=%zu allocated=%zu\n", total, allocated);
         return 0;
     }
+
+    GC_collect();
     return 1;
 }
 
@@ -157,9 +159,7 @@ Block *GC_GlobalAllocator_nextBlock(GlobalAllocator *self) {
     if (block != NULL) return block;
 
     // 3. no block? allocated enough since last collect? collect!
-    if (GlobalAllocator_shouldCollect(self)) {
-        GC_collect();
-
+    if (GlobalAllocator_tryCollect(self)) {
         // 4. exhaust freshly recycled list:
         block = BlockList_shift(&self->recyclable_list);
         if (block != NULL) return block;
@@ -188,9 +188,7 @@ Block *GC_GlobalAllocator_nextFreeBlock(GlobalAllocator *self) {
     if (block != NULL) return block;
 
     // 2. no block? collect!
-    if (GlobalAllocator_shouldCollect(self)) {
-        GC_collect();
-
+    if (GlobalAllocator_tryCollect(self)) {
         // 2a. still no free blocks? grow!
         if (BlockList_isEmpty(&self->free_list)) {
             GlobalAllocator_growSmall(self);
@@ -219,9 +217,7 @@ void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int a
     if (mutator != NULL) return mutator;
 
     // 2. collect memory
-    if (GlobalAllocator_shouldCollect(self)) {
-        GC_collect();
-
+    if (GlobalAllocator_tryCollect(self)) {
         // 2a. try to allocate (again)
         mutator = GlobalAllocator_tryAllocateLarge(self, rsize, atomic);
         if (mutator != NULL) return mutator;
@@ -242,7 +238,7 @@ void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int a
     abort();
 }
 
-// TODO: thread safety (?)
+// TODO: thread safety
 void GC_GlobalAllocator_deallocateLarge(GlobalAllocator *self, void *pointer) {
     Chunk *chunk = (Chunk *)pointer - 1;
     chunk->allocated = (uint8_t)0;

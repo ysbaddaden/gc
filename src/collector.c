@@ -204,15 +204,6 @@ static inline void Collector_sweep(Collector *self) {
 //#endif
 }
 
-static void finalizeObject(Object *object, finalizer_t callback) {
-    if (!Object_isMarked(object)) {
-        callback(Object_mutatorAddress(object));
-    }
-}
-static inline void Collector_finalizeObjects(Collector *self) {
-    Hash_each(self->global_allocator->finalizers, (hash_iterator_t)finalizeObject);
-}
-
 void GC_Collector_collect(Collector *self) {
     DEBUG("GC: collect start\n");
 
@@ -230,7 +221,7 @@ void GC_Collector_collect(Collector *self) {
     GlobalAllocator_resetCounters(self->global_allocator);
 
     // 4. finalize unreachable objects
-    Collector_finalizeObjects(self);
+    GlobalAllocator_finalizeObjects(self->global_allocator);
 
     // 5. cleanup
     Collector_sweep(self);

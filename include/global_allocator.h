@@ -52,6 +52,17 @@ static inline void GlobalAllocator_finalize(GlobalAllocator *self, Object *objec
     }
 }
 
+static inline int GlobalAllocator_finalizeObjectCallback(Object *object, finalizer_t callback) {
+    if (!Object_isMarked(object)) {
+        callback(Object_mutatorAddress(object));
+        return 1;
+    }
+    return 0;
+}
+static inline void GlobalAllocator_finalizeObjects(GlobalAllocator *self) {
+    Hash_deleteIf(self->finalizers, (hash_iterator_t)GlobalAllocator_finalizeObjectCallback);
+}
+
 static inline int GlobalAllocator_inSmallHeap(GlobalAllocator *self, void *pointer) {
     return (pointer >= self->small_heap_start) && (pointer < self->small_heap_stop);
 }

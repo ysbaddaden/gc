@@ -204,44 +204,13 @@ static inline void Collector_sweep(Collector *self) {
 //#endif
 }
 
-static inline void Collector_finalizeSmallObjects(Collector *self) {
-    Block *block = self->global_allocator->small_heap_start;
-    Block *stop = self->global_allocator->small_heap_stop;
-
-    while (block < stop) {
-        char *line_headers = Block_lineHeaders(block);
-
-        for (int line_index = 0; line_index < LINE_COUNT; line_index++) {
-            char *line_header = line_headers + line_index;
-
-            if (LineHeader_containsObject(line_header)) {
-                char *line = Block_line(block, line_index);
-                int offset = LineHeader_getOffset(line_header);
-
-                while (offset < LINE_SIZE) {
-                    Object *object = (Object *)(line + offset);
-                    if (object->size == 0) break;
-
-                    if (!Object_isMarked(object) && Object_hasFinalizer(object)) {
-                        Object_runThenClearFinalizer(object);
-                    }
-                    offset += object->size;
-                }
-            }
-        }
-
-        block = (Block *)((char *)block + BLOCK_SIZE);
+static void finalizeObject(Object *object, finalizer_t callback) {
+    if (!Object_isMarked(object)) {
+        callback(Object_mutatorAddress(object));
     }
 }
-
-static inline void Collector_finalizeLargeObjects(Collector *self) {
-    Chunk *chunk = self->global_allocator->large_chunk_list.first;
-    while (chunk != NULL) {
-        if (Chunk_isAllocated(chunk) && !Chunk_isMarked(chunk) && Object_hasFinalizer(&chunk->object)) {
-            Object_runThenClearFinalizer(&chunk->object);
-        }
-        chunk = chunk->next;
-    }
+static inline void Collector_finalizeObjects(Collector *self) {
+    Hash_each(self->global_allocator->finalizers, (hash_iterator_t)finalizeObject);
 }
 
 void GC_Collector_collect(Collector *self) {
@@ -261,8 +230,7 @@ void GC_Collector_collect(Collector *self) {
     GlobalAllocator_resetCounters(self->global_allocator);
 
     // 4. finalize unreachable objects
-    Collector_finalizeSmallObjects(self);
-    Collector_finalizeLargeObjects(self);
+    Collector_finalizeObjects(self);
 
     // 5. cleanup
     Collector_sweep(self);

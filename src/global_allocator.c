@@ -48,6 +48,8 @@ void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
     ChunkList_clear(&self->large_chunk_list);
     ChunkList_push(&self->large_chunk_list, large_chunk);
 
+    self->finalizers = Hash_create(8);
+
     DEBUG("GC: heap size=%zu start=%p stop=%p large_start=%p large_stop=%p\n",
             initial_size, self->small_heap_start, self->small_heap_stop, self->large_heap_start, self->large_heap_stop);
 }
@@ -241,11 +243,13 @@ void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int a
 // TODO: thread safety
 void GC_GlobalAllocator_deallocateLarge(__attribute__((__unused__)) GlobalAllocator *self, void *pointer) {
     Chunk *chunk = (Chunk *)pointer - 1;
-    chunk->allocated = (uint8_t)0;
 
-    if (Object_hasFinalizer(&chunk->object)) {
-        Object_runThenClearFinalizer(&chunk->object);
+    finalizer_t finalizer = GlobalAllocator_deleteFinalizer(self, &chunk->object);
+    if (finalizer != NULL) {
+        finalizer(Chunk_mutatorAddress(chunk));
     }
+
+    chunk->allocated = (uint8_t)0;
 
     // TODO: merge with next free chunks (?)
 }

@@ -56,6 +56,9 @@ void GC_deinit() {
     free(collector);
     collector = NULL;
 
+    Hash_free(global_allocator->finalizers);
+    global_allocator->finalizers = NULL;
+
     free(global_allocator);
     global_allocator = NULL;
 }
@@ -120,9 +123,10 @@ void* GC_realloc(void *pointer, size_t size) {
     void *new_pointer = GC_malloc_with_atomic(size, object->atomic);
     memcpy(new_pointer, pointer, available);
 
-    if (Object_hasFinalizer(object)) {
+    finalizer_t finalizer = GlobalAllocator_deleteFinalizer(global_allocator, object);
+    if (finalizer != NULL) {
         Object *new_object = (Object *)((char *)new_pointer - sizeof(Object));
-        Object_moveFinalizer(object, new_object);
+        GlobalAllocator_registerFinalizer(global_allocator, new_object, finalizer);
     }
     DEBUG("GC: realloc old=%p new=%p size=%zu atomic=%d\n", pointer, new_pointer, size, object->atomic);
 
@@ -141,7 +145,7 @@ void GC_free(void *pointer) {
 
 void GC_register_finalizer(void *pointer, finalizer_t callback) {
     Object *object = (Object *)pointer - 1;
-    Object_setFinalizer(object, callback);
+    GlobalAllocator_registerFinalizer(global_allocator, object, callback);
 }
 
 void GC_collect_once() {

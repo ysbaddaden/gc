@@ -19,8 +19,8 @@ void *GC_malloc_atomic(size_t size);
 void *GC_realloc(void *pointer, size_t size);
 void GC_free(void *pointer);
 
-// typedef void (*GC_finalizer_t)(void *);
-// void GC_register_finalizer(void *pointer, GC_finalizer_t);
+typedef void (*GC_finalizer_t)(void *);
+void GC_register_finalizer(void *pointer, GC_finalizer_t);
 
 // The library doesn't define GC_collect. The program is responsible for
 // defining the symbol and calling GC_collect_once. For example in crystal we

@@ -24,13 +24,11 @@ static inline void Chunk_init(Chunk *chunk, size_t size) {
     // not required:
     chunk->object.marked = 0;
     chunk->object.atomic = 0;
-    chunk->object.finalizer = NULL;
 }
 
 static inline void Chunk_allocate(Chunk *self, int atomic) {
     self->allocated = 1;
     self->object.atomic = atomic;
-    self->object.finalizer = NULL;
 }
 
 static inline int Chunk_isAllocated(Chunk *self) {

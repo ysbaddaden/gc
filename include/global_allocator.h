@@ -4,6 +4,9 @@
 #include "constants.h"
 #include "block_list.h"
 #include "chunk_list.h"
+#include "hash.h"
+
+typedef void (*finalizer_t)(void *);
 
 typedef struct GC_GlobalAllocator {
     size_t small_heap_size;
@@ -19,6 +22,8 @@ typedef struct GC_GlobalAllocator {
 
     ChunkList large_chunk_list;
 
+    Hash *finalizers;
+
     size_t memory_limit;
     size_t free_space_divisor;
     size_t allocated_bytes_since_collect;
@@ -31,6 +36,21 @@ void GC_GlobalAllocator_deallocateLarge(GlobalAllocator *self, void *pointer);
 Block *GC_GlobalAllocator_nextBlock(GlobalAllocator *self);
 Block *GC_GlobalAllocator_nextFreeBlock(GlobalAllocator *self);
 void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self);
+
+static inline void GlobalAllocator_registerFinalizer(GlobalAllocator *self, Object *object, finalizer_t callback) {
+    Hash_insert(self->finalizers, object, (void *)callback);
+}
+
+static inline finalizer_t GlobalAllocator_deleteFinalizer(GlobalAllocator *self, Object *object) {
+    return (finalizer_t)Hash_delete(self->finalizers, object);
+}
+
+static inline void GlobalAllocator_finalize(GlobalAllocator *self, Object *object) {
+    finalizer_t finalizer = (finalizer_t)Hash_delete(self->finalizers, object);
+    if (finalizer != NULL) {
+        finalizer(Object_mutatorAddress(object));
+    }
+}
 
 static inline int GlobalAllocator_inSmallHeap(GlobalAllocator *self, void *pointer) {
     return (pointer >= self->small_heap_start) && (pointer < self->small_heap_stop);

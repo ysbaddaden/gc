@@ -102,11 +102,12 @@ TEST test_Hash_tombstones() {
 
 static int test_Hash_sum = 0;
 
-static void sum_hash_test(__attribute__((__unused__)) void *key, int *value) {
+static int sum_hash_test(__attribute__((__unused__)) void *key, int *value) {
     test_Hash_sum += *value;
+    return (*value % 2) == 0;
 }
 
-TEST test_Hash_each() {
+TEST test_Hash_deleteIf() {
     Hash *hash = Hash_create(8);
 
     int keys[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -116,8 +117,16 @@ TEST test_Hash_each() {
         Hash_insert(hash, keys+i, values+i);
     }
 
-    Hash_each(hash, (hash_iterator_t)sum_hash_test);
+    Hash_deleteIf(hash, (hash_iterator_t)sum_hash_test);
     ASSERT_EQ_FMT(100, test_Hash_sum, "%d");
+
+    for (int i = 0; i < 8; i++) {
+        if (*(values + i) % 2 == 0) {
+            ASSERT_EQ(NULL, Hash_search(hash, keys+i));
+        } else {
+            ASSERT_EQ(values+i, Hash_search(hash, keys+i));
+        }
+    }
 
     PASS();
 }
@@ -201,6 +210,6 @@ SUITE(HashSuite) {
     RUN_TEST(test_Hash_insert);
     RUN_TEST(test_Hash_delete);
     RUN_TEST(test_Hash_tombstones);
-    RUN_TEST(test_Hash_each);
+    RUN_TEST(test_Hash_deleteIf);
     RUN_TEST(test_Hash);
 }

@@ -139,6 +139,13 @@ void GC_Hash_insert(Hash *self, void *key, void *value) {
     allocate(entry, key, value);
 }
 
+// clear tombstones when they reach 25% load
+static inline void clearTombstones(Hash *self) {
+    if (self->deleted >= (self->mask + 1) / 4) {
+        resize(self, self->used);
+    }
+}
+
 void *GC_Hash_delete(Hash *self, void *key) {
     size_t i, j;
     ENTRY *entry;
@@ -156,27 +163,27 @@ void *GC_Hash_delete(Hash *self, void *key) {
         self->deleted++;
 
         void *value = entry->value;
-
-        // clear tombstones when they reach 25% load
-        if (self->deleted >= (self->mask + 1) / 4) {
-            resize(self, self->used);
-        }
+        clearTombstones(self);
         return value;
     }
 
     return NULL;
 }
 
-void GC_Hash_each(Hash *self, hash_iterator_t callback) {
+void GC_Hash_deleteIf(Hash *self, hash_iterator_t callback) {
     ENTRY *entry = self->entries;
     ENTRY *limit = (ENTRY *)self->entries + (self->mask + 1);
 
     while (entry < limit) {
         if (entry->status == ALLOCATED) {
-            callback(entry->key, entry->value);
+            if (callback(entry->key, entry->value)) {
+                entry->status = DELETED;
+                self->deleted++;
+            }
         }
         entry++;
     }
+    clearTombstones(self);
 }
 
 void GC_Hash_free(Hash *self) {

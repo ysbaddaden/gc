@@ -38,17 +38,20 @@ Block *GC_GlobalAllocator_nextFreeBlock(GlobalAllocator *self);
 void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self);
 
 static inline void GlobalAllocator_registerFinalizer(GlobalAllocator *self, Object *object, finalizer_t callback) {
-    Hash_insert(self->finalizers, object, (void *)callback);
+    void *ptr = *(void **)(&callback);
+    Hash_insert(self->finalizers, object, ptr);
 }
 
 static inline finalizer_t GlobalAllocator_deleteFinalizer(GlobalAllocator *self, Object *object) {
-    return (finalizer_t)Hash_delete(self->finalizers, object);
+    finalizer_t callback;
+    *(void **)(&callback) = Hash_delete(self->finalizers, object);
+    return callback;
 }
 
 static inline void GlobalAllocator_finalize(GlobalAllocator *self, Object *object) {
-    finalizer_t finalizer = (finalizer_t)Hash_delete(self->finalizers, object);
-    if (finalizer != NULL) {
-        finalizer(Object_mutatorAddress(object));
+    finalizer_t callback = GlobalAllocator_deleteFinalizer(self, object);
+    if (callback != NULL) {
+        callback(Object_mutatorAddress(object));
     }
 }
 

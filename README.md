@@ -1,52 +1,42 @@
 # Garbarge Collector
 
-A garbage collector for the Crystal programming language. Currently written in
-C. It may eventually be ported to Crystal, or kept as an external library for
-generic usages —with strong ties to Crystal.
+A garbage collector for the Crystal programming language.
+
+Currently written in C. It may eventually be ported to Crystal, or kept as an
+external library for generic usages —with strong ties to Crystal.
 
 The garbage collector is based on Immix, a garbage collector introduced by
 Stephen M. Blackburn and Kathryn S. McKinley in the
-[Immix: A Mark-Region Garbage Collector with Space Efficiency, Fast Collection,
-and Mutator Performance](http://www.cs.utexas.edu/users/speedway/DaCapo/papers/immix-pldi-2008.pdf)
+[Immix: A Mark-Region Garbage Collector with Space Efficiency, Fast Collection, and Mutator Performance](http://www.cs.utexas.edu/users/speedway/DaCapo/papers/immix-pldi-2008.pdf)
 paper published in 2008.
 
-Only the basic ideas from Immix will be implemented at first, with the goal to
-eventually implement most Immix optimizations (compaction) along with precise
-marking in the long term.
+Only the basic ideas from Immix are implemented. The goal is to implement most
+optimizations, for example compaction and precise marking in the long term.
 
 
 ## Status
 
-It's a WORK IN PROGRESS that looks like working.
+This is a WORK IN PROGRESS but seems to be CORRECT —i.e. no segfaults!
 
-The small object space is following the Immix memory layout, minus compaction
-(opportunistic evacuation) which requires a fully precise GC capable to
+The small object space follows the Immix memory layout, minus compaction
+(opportunistic evacuation) that would require a fully precise GC capable to
 perfectly identify references in both allocations and stacks.
 
-The large objects space relies on a mere linked list of splittable chunks. There
-is room for improvement, here. Mostly in indexing of free/allocated chunks for
-quicker allocations and quicker marking.
+The large object space relies on a mere linked list of splittable chunks. There
+is room for improvement, mostly in indexing of free/allocated chunks for quicker
+allocations and marking.
 
-Allocators and a collector have been implemented. Thought they appear to be
-correct, they're only efficient during certain workloads. Some workloads, like
-the Crystal compiler, that rapidly allocate many objects and require the HEAP to
-grow quickly may be very slow (the GC will collect too often). Keeping a deeply
-nested object tree may also cause a stack overflow.
+The GC appears to be correct, and capable to handle different workloads with
+good performance. For example a highly concurrent HTTP server, or the Crystal
+compiler itself.
 
-The allocator misses a mechanism to prefer growing the HEAP over collecting
-again and again quickly for small gains if any (very slow). The collector should
-dispatch marking of nested objects instead of recursively marking objects,
-exhausting the stack, and causing segfaults.
-
-Last but not least, finalizers aren't called yet, so you'll probably leak
-memory (not controlled by GC) and more.
-
-You've been warned!
+Please try it out and report issues —e.g. slower cases, high memory usages.
+Don't forget to add reduced samples that reproduce the issue.
 
 
 ## Usage
 
-I recommend using Crystal strictly greater than 0.24.1 (i.e. master branch).
+I recommend using Crystal 0.24.2 or later.
 
 Add the `immix` dependency to your `shard.yml`, then run `shards install` or
 `shards update`. This will install the dependency and compile the `immix.a`
@@ -59,12 +49,12 @@ dependencies:
     branch: master
 ```
 
-Require `immix` somewhere in your crystal source code, then compile it with the
-`-Dgc_none` flag. This combination will use the dummy GC provided with crystal
-which will be overwriten with this shard's GC.
+Require `immix` somewhere in your source code, then build your program with the
+`-Dgc_none` flag. This combinaison will use the dummy GC provided with Crystal
+that will be overwritten with this shard's GC.
 
 If you want to conduct tests, you may conditionally require immix GC based on
-the presence of the `gc_none` flag, for example:
+the presence of the `gc_none` flag. For example:
 
 ```crystal
 {% if flag?(:gc_none) %}
@@ -73,13 +63,24 @@ the presence of the `gc_none` flag, for example:
 ```
 
 
+### Benchmarks
+
+Installing the `immix` shard will compile `immix.a` with assertions turned on,
+to help debugging and issue reporting. To fully evaluate the performance, you
+should recompile the library with `-DNDEBUG` to disable assertions. For example:
+
+```console
+$ cd lib/immix
+$ make -B CUSTOM=-DNDEBUG
+```
+
+
 ## Tests
 
 First install the ([greatest](https://github.com/silentbicycle/greatest/)
-dependency using `make setup` then run `make test` to run the test suites.
+dependency using `make setup` then run `make test` to run the test suite.
 
-Please note that the test suites are merely scaffold tests for TDD of data
-structures.
+Note that the test suites are merely scaffold tests for TDD of data structures.
 
 
 ## Credits

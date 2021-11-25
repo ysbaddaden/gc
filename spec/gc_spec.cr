@@ -1,5 +1,5 @@
-{% if flag?(:gc_immix) %}
-  require "../src/gc"
+{% if flag?(:gc_none) %}
+  require "../src/immix"
 {% end %}
 require "spec"
 

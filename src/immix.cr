@@ -10,7 +10,6 @@ module GC
 
   def self.init : Nil
     LibC.GC_init
-    @@collector = spawn(name: "GC_IMMIX_COLLECTOR") { collector_loop }
   end
 
   def self.enable
@@ -37,11 +36,15 @@ module GC
 
   def self.collect : Nil
     @@pending = Fiber.current
-    @@collector.try(&.resume)
+    collector.try(&.resume)
+  end
+
+  private def self.collector
+    @@collector ||= spawn(name: "GC_IMMIX_COLLECTOR") { collector_loop }
   end
 
   protected def self.collector_loop
-    Scheduler.reschedule
+    sleep
 
     loop do
       begin
@@ -51,7 +54,7 @@ module GC
           @@pending = nil
           pending.resume
         else
-          Scheduler.reschedule
+          sleep
         end
       rescue
         LibC.dprintf(2, "GC: collector crashed\n")

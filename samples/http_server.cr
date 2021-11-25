@@ -5,10 +5,11 @@ require "http/server"
 
 i = 0
 
-server = HTTP::Server.new(9292) do |ctx|
+server = HTTP::Server.new do |ctx|
   ctx.response.headers["content-type"] = "text/plain"
   ctx.response << "Hello World #{i += 1}\n"
 end
+server.bind_tcp(9292)
 
 #spawn do
   puts "listening on :9292"

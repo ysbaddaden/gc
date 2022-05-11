@@ -29,6 +29,7 @@ void GC_register_finalizer(void *pointer, GC_finalizer_t);
 // GC doesn't have to).
 void GC_collect();
 void GC_collect_once();
+int GC_isCollecting();
 
 // We don't detect or collect stacks to iterate to find objects to mark. The
 // program is responsible for registering a callback that will call

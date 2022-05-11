@@ -11,6 +11,7 @@ void GC_Collector_init(Collector *self, GlobalAllocator *allocator) {
     self->global_allocator = allocator;
     self->collect_callback = NULL;
     Stack_init(&self->roots, GC_getMemoryLimit());
+    self->is_collecting = 0;
 }
 
 static inline void Collector_unmarkSmallObjects(Collector *self) {

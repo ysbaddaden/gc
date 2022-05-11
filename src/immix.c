@@ -149,12 +149,18 @@ void GC_register_finalizer(void *pointer, finalizer_t callback) {
 }
 
 void GC_collect_once() {
+    Collector_setCollecting(collector, 1);
     Collector_collect(collector);
     LocalAllocator_reset(GC_local_allocator);
+    Collector_setCollecting(collector, 0);
 }
 
 void GC_register_collect_callback(collect_callback_t collect_callback) {
     Collector_registerCollectCallback(collector, collect_callback);
+}
+
+int GC_isCollecting() {
+    return Collector_isCollecting(collector);
 }
 
 void GC_add_roots(void *stack_pointer, void *stack_bottom, const char *source) {

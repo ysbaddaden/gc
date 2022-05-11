@@ -10,6 +10,7 @@ typedef struct GC_Collector {
     GlobalAllocator *global_allocator;
     collect_callback_t collect_callback;
     Stack roots;
+    int is_collecting;
 } Collector;
 
 void GC_Collector_init(Collector *self, GlobalAllocator *allocator);
@@ -26,6 +27,15 @@ static inline void Collector_callCollectCallback(Collector *self) {
     if (callback != NULL) {
         callback();
     }
+}
+
+static inline void Collector_setCollecting(Collector *self, int value) {
+    assert(value == 0 || value == 1);
+    self->is_collecting = value;
+}
+
+static inline int Collector_isCollecting(Collector *self) {
+    return self->is_collecting;
 }
 
 #define Collector_init GC_Collector_init

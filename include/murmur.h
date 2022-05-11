@@ -47,8 +47,10 @@ static uint32_t MurmurHash2(const void *key, int len, uint32_t seed) {
     switch (len) {
         case 3:
             h ^= data[2] << 16;
+            __attribute__ ((fallthrough));
         case 2:
             h ^= data[1] << 8;
+            __attribute__ ((fallthrough));
         case 1:
             h ^= data[0];
             h *= m;

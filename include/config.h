@@ -1,7 +1,7 @@
 #ifndef GC_CONFIG_H
 #define GC_CONFIG_H
 
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 
 #if defined(__linux__)
 extern char __data_start[];

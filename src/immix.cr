@@ -5,8 +5,9 @@ fun gc_collect = GC_collect
 end
 
 module GC
+  @@mutex = Mutex.new
   @@pending : Fiber?
-  @@collector : Fiber?
+  @@collector : Fiber = spawn(name: "GC_IMMIX_COLLECTOR") { collector_loop }
 
   def self.init : Nil
     LibC.GC_init
@@ -35,12 +36,10 @@ module GC
   end
 
   def self.collect : Nil
-    @@pending = Fiber.current
-    collector.try(&.resume)
-  end
-
-  private def self.collector
-    @@collector ||= spawn(name: "GC_IMMIX_COLLECTOR") { collector_loop }
+    @@mutex.synchronize do
+      @@pending = Fiber.current
+      @@collector.resume
+    end
   end
 
   protected def self.collector_loop
@@ -54,6 +53,7 @@ module GC
           @@pending = nil
           pending.resume
         else
+          # shouldn't happen since GC.collect always sets @@pending
           sleep
         end
       rescue

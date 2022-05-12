@@ -25,8 +25,8 @@ samples/http_server: samples/http_server.cr immix.a src/*.cr
 	$(CRYSTAL) build $< -o $@ $(CRFLAGS)
 
 setup: phony
-	[ -f test/greatest.h ] && wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/greatest.h -O test/greatest.h
-	[ -f test/greenest ] && wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/contrib/greenest -O test/greenest
+	wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/greatest.h -O test/greatest.h
+	wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/contrib/greenest -O test/greenest
 	chmod +x test/greenest
 
 build/test-runner: immix.a test/*.c test/*.h
@@ -34,6 +34,9 @@ build/test-runner: immix.a test/*.c test/*.h
 
 test: phony build/test-runner
 	./build/test-runner $(TEST)
+
+spec: phony
+	crystal spec -Dgc_none
 
 clean: phony
 	rm -rf immix.a build samples/http_server

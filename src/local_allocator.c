@@ -120,7 +120,7 @@ static inline Object *LocalAllocator_tryAllocateSmall(LocalAllocator *self, size
 
 void *GC_LocalAllocator_allocateSmall(LocalAllocator *self, size_t size, int atomic) {
     size_t rsize = ROUND_TO_NEXT_MULTIPLE(size + sizeof(Object), WORD_SIZE);
-    assert(rsize < LARGE_OBJECT_SIZE);
+    assert(rsize <= LARGE_OBJECT_SIZE);
 
     while (1) {
         Object *object = LocalAllocator_tryAllocateSmall(self, rsize);

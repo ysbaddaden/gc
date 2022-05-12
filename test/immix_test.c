@@ -24,6 +24,22 @@ TEST test_GC_malloc_small() {
     PASS();
 }
 
+TEST test_GC_malloc_small_max() {
+    size_t size = LARGE_OBJECT_SIZE - sizeof(Object);
+    void *small = GC_malloc(size);
+
+    // allocated memory
+    ASSERT(small != NULL);
+
+    // initialized object
+    Object *object = (Object *)((char *)small - sizeof(Object));
+    ASSERT_EQ_FMT(size + sizeof(Object), object->size, "%zu");
+    ASSERT_EQ_FMT(0, object->marked, "%d");
+    ASSERT_EQ_FMT(0, object->atomic, "%d");
+
+    PASS();
+}
+
 TEST test_GC_malloc_large() {
     void *large = GC_malloc(LARGE_OBJECT_SIZE);
 
@@ -165,6 +181,7 @@ TEST test_grows_memory() {
 
 SUITE(ImmixSuite) {
     RUN_TEST(test_GC_malloc_small);
+    RUN_TEST(test_GC_malloc_small_max);
     RUN_TEST(test_GC_malloc_large);
     RUN_TEST(test_GC_malloc_atomic_small);
     RUN_TEST(test_GC_malloc_atomic_large);

@@ -17,11 +17,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-20.04
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
 
     steps:
       - uses: actions/checkout@v2
-      - uses: oprypin/install-crystal@v1
+      - uses: crystal-lang/install-crystal@v1
       - run: make setup
       - run: make test
       - run: make spec

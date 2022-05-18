@@ -4,7 +4,7 @@ CRYSTAL = crystal
 CRFLAGS = -Dgc_none --release
 
 CFLAGS = $(CUSTOM) -g -fPIC -O3 -Wall -Wextra -pedantic -std=c99 -Iinclude -funwind-tables
-LDFLAGS = $(PWD)/immix.a -lm
+LDFLAGS = $(PWD)/immix.a -lm -lpthread
 
 OBJECTS = build/immix.o \
 		  build/global_allocator.o \
@@ -25,8 +25,8 @@ samples/http_server: samples/http_server.cr immix.a src/*.cr
 	$(CRYSTAL) build $< -o $@ $(CRFLAGS)
 
 setup: phony
-	wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/greatest.h -O test/greatest.h
-	wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.3.1/contrib/greenest -O test/greenest
+	wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.5.0/greatest.h -O test/greatest.h
+	wget https://raw.githubusercontent.com/silentbicycle/greatest/v1.5.0/contrib/greenest -O test/greenest
 	chmod +x test/greenest
 
 build/test-runner: immix.a test/*.c test/*.h

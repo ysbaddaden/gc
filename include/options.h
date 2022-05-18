@@ -49,7 +49,9 @@ static inline size_t GC_getIntegerFromEnvironmentVariable(const char *name, long
             fprintf(stderr, "GC: ignoring invalid %s value", name);
             return default_value;
         }
+        return value;
     }
+
     return default_value;
 }
 

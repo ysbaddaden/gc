@@ -18,7 +18,7 @@
 static inline void *GC_map(size_t memory_limit) {
     void *addr = mmap(NULL, memory_limit, MEM_PROT, MEM_FLAGS, MEM_FD, MEM_OFFSET);
     if (addr == MAP_FAILED) {
-        printf("GC: mmap error: %s\n", strerror(errno));
+        fprintf(stderr, "GC: mmap error: %s\n", strerror(errno));
         abort();
     }
     return addr;

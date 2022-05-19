@@ -12,6 +12,10 @@ void GC_init();
 // program.
 void GC_deinit();
 
+// Global lock.
+void GC_lock();
+void GC_unlock();
+
 int GC_in_heap(void *pointer);
 
 void *GC_malloc(size_t size);
@@ -21,6 +25,9 @@ void GC_free(void *pointer);
 
 typedef void (*GC_finalizer_t)(void *);
 void GC_register_finalizer(void *pointer, GC_finalizer_t);
+
+void GC_init_thread();
+void GC_deinit_thread(void *);
 
 // The library doesn't define GC_collect. The program is responsible for
 // defining the symbol and calling GC_collect_once. For example in crystal we

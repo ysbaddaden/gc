@@ -1,9 +1,11 @@
 #include "config.h"
 
 #include <errno.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "array.h"
 #include "collector.h"
 #include "global_allocator.h"
 #include "local_allocator.h"
@@ -14,12 +16,25 @@
 static GlobalAllocator *GC_global_allocator;
 #define global_allocator GC_global_allocator
 
-// TODO: associate local allocators to threads.
-static LocalAllocator *GC_local_allocator;
-#define local_allocator GC_local_allocator
+static pthread_key_t GC_local_allocator_key;
+static Array *GC_local_allocators;
 
 static Collector *GC_collector;
 #define collector GC_collector
+
+static pthread_mutex_t *GC_mutex;
+
+static inline void setLocalAllocator(LocalAllocator *local_allocator) {
+  int err = pthread_setspecific(GC_local_allocator_key, local_allocator);
+  if (err) {
+      fprintf(stderr, "pthread_setspecific failed: %s", strerror(err));
+      abort();
+  }
+}
+
+static inline LocalAllocator *getLocalAllocator() {
+  return (LocalAllocator *)pthread_getspecific(GC_local_allocator_key);
+}
 
 void GC_init() {
     // We could allocate static values instead of using `malloc`, but then the
@@ -30,6 +45,17 @@ void GC_init() {
     // will only have pointers to the program HEAP and won't find pointers to
     // the GC HEAP anymore.
 
+    GC_mutex = malloc(sizeof(pthread_mutex_t));
+    if (GC_mutex == NULL) {
+        fprintf(stderr, "malloc failed %s\n", strerror(errno));
+        abort();
+    }
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
+    pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST);
+    pthread_mutex_init(GC_mutex, &attr);
+
     global_allocator = malloc(sizeof(GlobalAllocator));
     if (global_allocator == NULL) {
         fprintf(stderr, "malloc failed %s\n", strerror(errno));
@@ -37,12 +63,17 @@ void GC_init() {
     }
     GlobalAllocator_init(global_allocator, GC_initialHeapSize());
 
-    local_allocator = malloc(sizeof(LocalAllocator));
-    if (local_allocator == NULL) {
+    int err = pthread_key_create(&GC_local_allocator_key, GC_deinit_thread);
+    if (err) {
+        fprintf(stderr, "malloc failed %s\n", strerror(err));
+        abort();
+    }
+    GC_local_allocators = malloc(sizeof(Array));
+    if (GC_local_allocators == NULL) {
         fprintf(stderr, "malloc failed %s\n", strerror(errno));
         abort();
     }
-    LocalAllocator_init(local_allocator, global_allocator);
+    Array_init(GC_local_allocators, 16l);
 
     collector = malloc(sizeof(Collector));
     if (collector == NULL) {
@@ -50,28 +81,76 @@ void GC_init() {
         abort();
     }
     Collector_init(collector, global_allocator);
+
+    // Last but not least: initialize the current thread!
+    GC_init_thread();
 }
 
 void GC_deinit() {
     free(collector);
     collector = NULL;
 
+    pthread_key_delete(GC_local_allocator_key);
+    Array_each(GC_local_allocators, free);
+    free(GC_local_allocators);
+
     Hash_free(global_allocator->finalizers);
     global_allocator->finalizers = NULL;
 
     free(global_allocator);
     global_allocator = NULL;
+
+    free(GC_mutex);
+    GC_mutex = NULL;
+}
+
+void GC_init_thread() {
+    void *local_allocator = malloc(sizeof(LocalAllocator));
+    if (local_allocator == NULL) {
+        fprintf(stderr, "malloc failed %s\n", strerror(errno));
+        abort();
+    }
+    LocalAllocator_init((LocalAllocator *)local_allocator, global_allocator);
+    setLocalAllocator((LocalAllocator *)local_allocator);
+
+    GC_lock();
+    Array_push(GC_local_allocators, local_allocator);
+    GC_unlock();
+}
+
+void GC_deinit_thread(void *local_allocator) {
+    GC_lock();
+    Array_delete(GC_local_allocators, local_allocator);
+    GC_unlock();
+
+    free(local_allocator);
+}
+
+void GC_lock() {
+    int err = pthread_mutex_lock(GC_mutex);
+    if (err) {
+      fprintf(stderr, "pthread_mutex_lock failed: %s", strerror(err));
+      abort();
+    }
+}
+
+void GC_unlock() {
+    int err = pthread_mutex_unlock(GC_mutex);
+    if (err) {
+      fprintf(stderr, "pthread_mutex_unlock failed: %s", strerror(err));
+      abort();
+    }
 }
 
 int GC_in_heap(void *pointer) {
-  return GlobalAllocator_inHeap(global_allocator, pointer);
+    return GlobalAllocator_inHeap(global_allocator, pointer);
 }
 
 static inline void *GC_malloc_with_atomic(size_t size, int atomic) {
     void *pointer;
 
     if (size <= LARGE_OBJECT_SIZE - sizeof(Object)) {
-        pointer = LocalAllocator_allocateSmall(local_allocator, size, atomic);
+        pointer = LocalAllocator_allocateSmall(getLocalAllocator(), size, atomic);
 
         DEBUG("GC: malloc object=%p size=%zu actual=%zu atomic=%d ptr=%p\n",
                 (void *)((Object *)pointer - 1),
@@ -151,7 +230,7 @@ void GC_register_finalizer(void *pointer, finalizer_t callback) {
 void GC_collect_once() {
     Collector_setCollecting(collector, 1);
     Collector_collect(collector);
-    LocalAllocator_reset(GC_local_allocator);
+    Array_each(GC_local_allocators, (Array_iterator_t)LocalAllocator_reset);
     Collector_setCollecting(collector, 0);
 }
 

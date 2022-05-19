@@ -92,7 +92,10 @@ module GC
 
   # :nodoc:
   def self.pthread_create(thread : LibC::PthreadT*, attr : LibC::PthreadAttrT*, start : Void* -> Void*, arg : Void*)
-    LibC.pthread_create(thread, attr, start, arg)
+    LibC.pthread_create(thread, attr, ->(value) {
+      LibC.GC_init_thread()
+      start.call(value)
+    }, arg)
   end
 
   # :nodoc:

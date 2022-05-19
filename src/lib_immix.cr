@@ -3,6 +3,7 @@
 @[Link(ldflags: "#{__DIR__}/../immix.a")]
 lib LibC
   fun GC_init() : Void
+  fun GC_init_thread() : Void
   fun GC_malloc(SizeT) : Void*
   fun GC_malloc_atomic(SizeT) : Void*
   fun GC_realloc(Void*, SizeT) : Void*

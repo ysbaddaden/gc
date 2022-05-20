@@ -45,6 +45,13 @@ static inline long Array_size(Array *self) {
     return (self->cursor - self->buffer);
 }
 
+static inline void *Array_get(Array *self, long index) {
+    if (index < 0 || index >= Array_size(self)) {
+      return NULL;
+    }
+    return *(self->buffer + index);
+}
+
 static inline void Array_each(Array *self, Array_iterator_t callback) {
     void **cursor = self->buffer;
 
@@ -76,9 +83,9 @@ static inline void Array_delete(Array *self, void *item) {
 
     while (cursor < self->cursor) {
         if (*cursor == item) {
-          size_t len = self->cursor - cursor - 1;
-          if (len > 0) {
-            memmove(cursor + 1, cursor, len);
+          while (cursor < self->limit) {
+              *cursor = *(cursor + 1);
+              cursor += 1;
           }
           self->cursor -= 1;
           return;

@@ -81,6 +81,10 @@ module GC
   def self.add_finalizer(object)
   end
 
+  def self.register_disappearing_link(pointer : Void**)
+    # FIXME
+  end
+
   def self.stats
     zero = LibC::ULong.new(0)
     Stats.new(LibC.GC_get_heap_usage, zero, zero, zero, zero)
@@ -104,16 +108,32 @@ module GC
   end
 
   # :nodoc:
-  def self.stack_bottom : Void*
+  def self.current_thread_stack_bottom
     {% if flag?(:linux) && flag?(:gnu) %}
-      return LibC.__libc_stack_end
+      return {Pointer(Void).null, LibC.__libc_stack_end}
     {% else %}
       {% raise "GC: unsupported target (only <arch>-linux-gnu is supported)" %}
     {% end %}
   end
 
   # :nodoc:
-  def self.stack_bottom=(stack_bottom)
+  def self.set_stackbottom(stack_bottom : Void*)
+  end
+
+  # :nodoc:
+  def self.lock_read
+  end
+
+  # :nodoc:
+  def self.unlock_read
+  end
+
+  # :nodoc:
+  def self.lock_write
+  end
+
+  # :nodoc:
+  def self.unlock_write
   end
 
   # :nodoc:
@@ -124,5 +144,11 @@ module GC
   # :nodoc:
   def self.before_collect(&block)
     LibC.GC_register_collect_callback(block)
+  end
+
+  GC.before_collect do
+    Fiber.unsafe_each do |fiber|
+      fiber.push_gc_roots unless fiber.running?
+    end
   end
 end

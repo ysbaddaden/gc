@@ -12,6 +12,7 @@
 #include "block_list_test.c"
 #include "stack_test.c"
 #include "immix_test.c"
+#include "array_test.c"
 #include "hash_test.c"
 
 void GC_collect() {
@@ -73,6 +74,7 @@ int main(int argc, char *argv[]) {
         RUN_SUITE(BlockListSuite);
         RUN_SUITE(StackSuite);
         RUN_SUITE(HashSuite);
+        RUN_SUITE(ArraySuite);
 
         // public api
         RUN_SUITE(ImmixSuite);

@@ -136,7 +136,7 @@ static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
 // Collects memory if we allocated at least 1/Nth of the HEAP memory since the
 // last collection. Returns immediately if we're already collecting.
 static int GlobalAllocator_tryCollect(GlobalAllocator *self) {
-    if (GC_isCollecting()) {
+    if (GC_is_collecting()) {
         return 0;
     }
 
@@ -152,23 +152,33 @@ static int GlobalAllocator_tryCollect(GlobalAllocator *self) {
     return 1;
 }
 
-// TODO: thread safety
 Block *GC_GlobalAllocator_nextBlock(GlobalAllocator *self) {
     Block *block;
 
+    GC_lock();
+
     // 1. exhaust recyclable list:
     block = BlockList_shift(&self->recyclable_list);
-    if (block != NULL) return block;
+    if (block != NULL) {
+        GC_unlock();
+        return block;
+    }
 
     // 2. exhaust free list:
     block = BlockList_shift(&self->free_list);
-    if (block != NULL) return block;
+    if (block != NULL) {
+        GC_unlock();
+        return block;
+    }
 
     // 3. no block? allocated enough since last collect? collect!
     if (GlobalAllocator_tryCollect(self)) {
         // 4. exhaust freshly recycled list:
         block = BlockList_shift(&self->recyclable_list);
-        if (block != NULL) return block;
+        if (block != NULL) {
+            GC_unlock();
+            return block;
+        }
     }
 
     // 5. no free blocks? grow!
@@ -178,20 +188,27 @@ Block *GC_GlobalAllocator_nextBlock(GlobalAllocator *self) {
 
     // 6. get free block!
     block = BlockList_shift(&self->free_list);
-    if (block != NULL) return block;
+    if (block != NULL) {
+        GC_unlock();
+        return block;
+    }
 
     // 7. seriously, no luck
     fprintf(stderr, "GC: failed to allocate small object (can't shift block from free list)\n");
     abort();
 }
 
-// TODO: thread safety
 Block *GC_GlobalAllocator_nextFreeBlock(GlobalAllocator *self) {
     Block *block;
 
+    GC_lock();
+
     // 1. exhaust free list:
     block = BlockList_shift(&self->free_list);
-    if (block != NULL) return block;
+    if (block != NULL) {
+        GC_unlock();
+        return block;
+    }
 
     // 2. no block? collect!
     if (GlobalAllocator_tryCollect(self)) {
@@ -206,27 +223,37 @@ Block *GC_GlobalAllocator_nextFreeBlock(GlobalAllocator *self) {
 
     // 3. get free block!
     block = BlockList_shift(&self->free_list);
-    if (block != NULL) return block;
+    if (block != NULL) {
+        GC_unlock();
+        return block;
+    }
 
     // 4. seriously, no luck
     fprintf(stderr, "GC: failed to allocate small object (can't shift block from free list)\n");
     abort();
 }
 
-// TODO: thread safety
 void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int atomic) {
     size_t rsize = ROUND_TO_NEXT_MULTIPLE(size, WORD_SIZE);
     void *mutator;
 
+    GC_lock();
+
     // 1. try to allocate
     mutator = GlobalAllocator_tryAllocateLarge(self, rsize, atomic);
-    if (mutator != NULL) return mutator;
+    if (mutator != NULL) {
+        GC_unlock();
+        return mutator;
+    }
 
     // 2. collect memory
     if (GlobalAllocator_tryCollect(self)) {
         // 2a. try to allocate (again)
         mutator = GlobalAllocator_tryAllocateLarge(self, rsize, atomic);
-        if (mutator != NULL) return mutator;
+        if (mutator != NULL) {
+            GC_unlock();
+            return mutator;
+        }
     }
 
     // 3. grow memory
@@ -234,7 +261,10 @@ void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int a
 
     // 4. allocate!
     mutator = GlobalAllocator_tryAllocateLarge(self, rsize, atomic);
-    if (mutator != NULL) return mutator;
+    if (mutator != NULL) {
+        GC_unlock();
+        return mutator;
+    }
 
     // 5. seriously? no luck.
     fprintf(stderr, "GC: failed to allocate large object size=%zu actual=%zu +metadata=%zu\n",
@@ -244,9 +274,10 @@ void *GC_GlobalAllocator_allocateLarge(GlobalAllocator *self, size_t size, int a
     abort();
 }
 
-// TODO: thread safety
 void GC_GlobalAllocator_deallocateLarge(__attribute__((__unused__)) GlobalAllocator *self, void *pointer) {
     Chunk *chunk = (Chunk *)pointer - 1;
+
+    GC_lock();
 
     finalizer_t finalizer = GlobalAllocator_deleteFinalizer(self, &chunk->object);
     if (finalizer != NULL) {
@@ -256,6 +287,8 @@ void GC_GlobalAllocator_deallocateLarge(__attribute__((__unused__)) GlobalAlloca
     chunk->allocated = (uint8_t)0;
 
     // TODO: merge with next free chunks (?)
+
+    GC_unlock();
 }
 
 void GC_GlobalAllocator_recycleBlocks(GlobalAllocator *self) {

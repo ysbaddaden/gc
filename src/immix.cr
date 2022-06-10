@@ -5,7 +5,7 @@ fun gc_collect = GC_collect
 end
 
 module GC
-  @@mutex = Mutex.new
+  @@lock = Atomic::Flag.new
   @@pending : Fiber?
   @@collector : Fiber = spawn(name: "GC_IMMIX_COLLECTOR") { collector_loop }
 
@@ -36,9 +36,12 @@ module GC
   end
 
   def self.collect : Nil
-    @@mutex.synchronize do
+    if @@lock.test_and_set
       @@pending = Fiber.current
       @@collector.resume
+      @@lock.clear
+    else
+      Fiber.yield
     end
   end
 
@@ -92,7 +95,10 @@ module GC
 
   # :nodoc:
   def self.pthread_create(thread : LibC::PthreadT*, attr : LibC::PthreadAttrT*, start : Void* -> Void*, arg : Void*)
-    LibC.pthread_create(thread, attr, start, arg)
+    LibC.pthread_create(thread, attr, ->(value) {
+      LibC.GC_init_thread()
+      start.call(value)
+    }, arg)
   end
 
   # :nodoc:

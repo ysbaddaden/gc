@@ -136,7 +136,7 @@ static inline void *GlobalAllocator_tryAllocateLarge(GlobalAllocator *self, size
 // Collects memory if we allocated at least 1/Nth of the HEAP memory since the
 // last collection. Returns immediately if we're already collecting.
 static int GlobalAllocator_tryCollect(GlobalAllocator *self) {
-    if (GC_isCollecting()) {
+    if (GC_is_collecting()) {
         return 0;
     }
 

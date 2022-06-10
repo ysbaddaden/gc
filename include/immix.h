@@ -36,7 +36,7 @@ void GC_deinit_thread(void *);
 // GC doesn't have to).
 void GC_collect();
 void GC_collect_once();
-int GC_isCollecting();
+int GC_is_collecting();
 
 // We don't detect or collect stacks to iterate to find objects to mark. The
 // program is responsible for registering a callback that will call

@@ -10,9 +10,13 @@ lib LibC
   fun GC_free(Void*) : Void
   fun GC_in_heap(Void*) : Int
 
+  fun GC_lock() : Void
+  fun GC_unlock() : Void
+
   alias GC_CollectCallbackT = ->
   fun GC_register_collect_callback(GC_CollectCallbackT) : Int
   fun GC_collect_once() : Void
+  fun GC_is_collecting() : Int32
   fun GC_add_roots(Void*, Void*, Char*) : Void
 
   #fun GC_print_stats() : Void

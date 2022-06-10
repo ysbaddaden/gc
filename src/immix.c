@@ -238,7 +238,7 @@ void GC_register_collect_callback(collect_callback_t collect_callback) {
     Collector_registerCollectCallback(collector, collect_callback);
 }
 
-int GC_isCollecting() {
+int GC_is_collecting() {
     return Collector_isCollecting(collector);
 }
 

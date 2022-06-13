@@ -14,7 +14,8 @@ TEST test_BlockList_clear() {
 }
 
 TEST test_BlockList_push() {
-    void *heap = GC_mapAndAlign(BLOCK_SIZE * 4, BLOCK_SIZE * 4);
+    void *addr;
+    void *heap = GC_mapAndAlign(&addr, BLOCK_SIZE * 4, BLOCK_SIZE * 4);
 
     BlockList list;
     BlockList_clear(&list);
@@ -56,7 +57,8 @@ TEST test_BlockList_push() {
 }
 
 TEST test_BlockList_shift() {
-    void *heap = GC_mapAndAlign(BLOCK_SIZE * 4, BLOCK_SIZE * 4);
+    void *addr;
+    void *heap = GC_mapAndAlign(&addr, BLOCK_SIZE * 4, BLOCK_SIZE * 4);
 
     BlockList list;
     BlockList_clear(&list);

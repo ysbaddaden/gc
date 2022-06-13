@@ -3,7 +3,8 @@
 
 TEST test_mapAndAlign() {
     // mapped memory
-    void *start = GC_mapAndAlign(32768 * 4, 32768);
+    void *addr;
+    void *start = GC_mapAndAlign(&addr, 32768 * 4, 32768);
     ASSERT(start != NULL);
 
     // aligned memory start

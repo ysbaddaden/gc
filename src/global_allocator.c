@@ -20,7 +20,11 @@ void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
     self->total_allocated_bytes = 0;
 
     // small object space (immix)
-    void *heap_start = GC_mapAndAlign(self->memory_limit, initial_size);
+#if defined(GC_REMAP)
+    void *heap_start = GC_mapAndAlign(&self->small_heap_addr, initial_size, initial_size);
+#else
+    void *heap_start = GC_mapAndAlign(&self->small_heap_addr, self->memory_limit, initial_size);
+#endif
     self->small_heap_size = initial_size;
     self->small_heap_start = heap_start;
     self->small_heap_stop = (char *)heap_start + initial_size;
@@ -37,7 +41,11 @@ void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
     }
 
     // large objects space (linked list)
-    void *large_start = GC_mapAndAlign(self->memory_limit, initial_size);
+#if defined(GC_REMAP)
+    void *large_start = GC_mapAndAlign(&self->large_heap_addr, initial_size, initial_size);
+#else
+    void *large_start = GC_mapAndAlign(&self->large_heap_addr, self->memory_limit, initial_size);
+#endif
     self->large_heap_size = initial_size;
     self->large_heap_start = large_start;
     self->large_heap_stop = (char *)large_start + initial_size;
@@ -57,17 +65,21 @@ void GC_GlobalAllocator_init(GlobalAllocator *self, size_t initial_size) {
 static inline void GlobalAllocator_growSmall(GlobalAllocator *self) {
     size_t increment = self->small_heap_size * GROWTH_RATE / 100;
     increment = ROUND_TO_NEXT_MULTIPLE(increment, BLOCK_SIZE);
+    size_t new_size = self->small_heap_size + increment;
 
     if (self->small_heap_size + self->large_heap_size + increment > self->memory_limit) {
         fprintf(stderr, "GC: out of memory\n");
         abort();
     }
 
-    DEBUG("GC: grow small heap by %zu bytes to %zu bytes\n", increment, self->small_heap_size + increment);
+    DEBUG("GC: grow small heap by %zu bytes to %zu bytes\n", increment, new_size);
+#if defined(GC_REMAP)
+    GC_remapAligned(self->small_heap_addr, self->small_heap_size, new_size);
+#endif
 
     char *cursor = self->small_heap_stop;
     self->small_heap_stop = (char *)(self->small_heap_stop) + increment;
-    self->small_heap_size = self->small_heap_size + increment;
+    self->small_heap_size = new_size;
 
     int count = increment / BLOCK_SIZE;
     for (int i = 0; i < count; i++) {
@@ -80,17 +92,21 @@ static inline void GlobalAllocator_growSmall(GlobalAllocator *self) {
 static inline void GlobalAllocator_growLarge(GlobalAllocator *self, size_t increment) {
     size_t size = (size_t)1 << (size_t)ceil(log2((double)increment));
     size = ROUND_TO_NEXT_MULTIPLE(size, BLOCK_SIZE);
+    size_t new_size = self->large_heap_size + size;
 
     if (self->small_heap_size + self->large_heap_size + size > self->memory_limit) {
         fprintf(stderr, "GC: out of memory\n");
         abort();
     }
 
-    DEBUG("GC: grow large heap by %zu bytes to %zu bytes\n", size, self->large_heap_size + size);
+    DEBUG("GC: grow large heap by %zu bytes to %zu bytes\n", size, new_size);
+#if defined(GC_REMAP)
+    GC_remapAligned(self->large_heap_addr, self->large_heap_size, new_size);
+#endif
 
     void *cursor = self->large_heap_stop;
     self->large_heap_stop = (char *)(self->large_heap_stop) + size;
-    self->large_heap_size = self->large_heap_size + size;
+    self->large_heap_size = new_size;
 
     Chunk *chunk = (Chunk *)cursor;
     Chunk_init(chunk, size - CHUNK_HEADER_SIZE);

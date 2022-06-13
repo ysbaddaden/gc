@@ -94,11 +94,21 @@ module GC
   end
 
   # :nodoc:
+  record ThreadData, start : (Void*) -> Void*, arg : Void*
+
+  # :nodoc:
   def self.pthread_create(thread : LibC::PthreadT*, attr : LibC::PthreadAttrT*, start : Void* -> Void*, arg : Void*)
-    LibC.pthread_create(thread, attr, ->(value) {
+    data = LibC.malloc(sizeof(ThreadData))
+    data.as(ThreadData*).value = ThreadData.new(start, arg)
+
+    LibC.pthread_create(thread, attr, ->(datap) {
+      _data = datap.as(ThreadData*).value
+      _start, _arg = _data.start, _data.arg
+      LibC.free(datap)
+
       LibC.GC_init_thread()
-      start.call(value)
-    }, arg)
+      _start.call(_arg)
+    }, data)
   end
 
   # :nodoc:

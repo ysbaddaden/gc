@@ -6,12 +6,25 @@
 #include "line_header.h"
 #include "memory.h"
 #include "utils.h"
+#include "segments.h"
+
+#ifdef DARWIN
+#include "dynamic_loading.h"
+#endif
 
 void GC_Collector_init(Collector *self, GlobalAllocator *allocator) {
     self->global_allocator = allocator;
     self->collect_callback = NULL;
     Stack_init(&self->roots, GC_getMemoryLimit());
     self->is_collecting = 0;
+
+    Segments_init();
+#ifdef DARWIN
+    GC_init_dyld();
+#else
+    Segments_add_segment(GC_DATA_START, GC_DATA_END, ".data");
+    Segments_add_segment(GC_BSS_START, GC_BSS_END, ".bss");
+#endif
 }
 
 static inline void Collector_unmarkSmallObjects(Collector *self) {
@@ -205,6 +218,12 @@ static inline void Collector_sweep(Collector *self) {
 //#endif
 }
 
+void GC_Collector_add_segment(void *self, Segment *segment) {
+    DEBUG("GC: add root %p %p %s\n", segment->start, segment->end, segment->name);
+
+    Collector_addRoots((Collector*)self, segment->start, segment->end, segment->name);
+}
+
 void GC_Collector_collect(Collector *self) {
     DEBUG("GC: collect start\n");
 
@@ -213,8 +232,7 @@ void GC_Collector_collect(Collector *self) {
     Collector_unmarkLargeObjects(self);
 
     // 2. collect stack roots
-    Collector_addRoots(self, GC_DATA_START, GC_DATA_END, ".data");
-    Collector_addRoots(self, GC_BSS_START, GC_BSS_END, ".bss");
+    Segments_each(self, &GC_Collector_add_segment);
     Collector_callCollectCallback(self);
 
     // 3. search reachable objects to mark (recursively)

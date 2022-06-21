@@ -2,6 +2,7 @@
 #define GC_ARRAY_H
 
 #include <stdlib.h>
+#include <stdio.h> // needed for perror
 
 typedef struct {
     long capacity;

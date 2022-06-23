@@ -28,6 +28,8 @@ lib LibC
 
   {% if flag?(:linux) && flag?(:gnu) %}
     $__libc_stack_end : Void*
+  {% elsif flag?(:darwin) %}
+    fun pthread_get_stackaddr_np(x0 : PthreadT) : Void*
   {% end %}
 
   fun abort() : Void

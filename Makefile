@@ -10,7 +10,9 @@ OBJECTS = build/immix.o \
 		  build/global_allocator.o \
 		  build/local_allocator.o \
 		  build/collector.o \
-		  build/hash.o
+		  build/hash.o \
+		  build/segments.o \
+		  build/dynamic_loading.o
 
 all: immix.a
 

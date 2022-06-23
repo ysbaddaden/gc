@@ -127,6 +127,8 @@ module GC
   def self.current_thread_stack_bottom
     {% if flag?(:linux) && flag?(:gnu) %}
       return {Pointer(Void).null, LibC.__libc_stack_end}
+    {% elsif flag?(:darwin) %}
+      return {Pointer(Void).null, LibC.pthread_get_stackaddr_np LibC.pthread_self}
     {% else %}
       {% raise "GC: unsupported target (only <arch>-linux-gnu is supported)" %}
     {% end %}

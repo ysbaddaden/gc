@@ -53,7 +53,10 @@ void GC_init() {
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE); // => ERRORCHECK
+#if !defined(__APPLE__) // `setrobust` is part of SUSv7 and macOS only supports SUSv2
     pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST);
+#endif
+
     pthread_mutex_init(GC_mutex, &attr);
 
     global_allocator = malloc(sizeof(GlobalAllocator));

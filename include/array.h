@@ -22,12 +22,15 @@ static inline void Array_delete(Array *, void *) __attribute__ ((__unused__));
 static inline void Array_clear(Array *) __attribute__ ((__unused__));
 
 static inline void Array_resize(Array *self, long new_capacity) {
+    long current_index = Array_size(self);
     self->capacity = new_capacity;
+
     self->buffer = realloc(self->buffer, new_capacity * sizeof(void *));
     if (self->buffer == NULL) {
         perror("GC: realloc");
         abort();
     }
+    self->cursor = self->buffer + current_index;
     self->limit = self->buffer + new_capacity;
 }
 

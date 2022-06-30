@@ -10,6 +10,7 @@ typedef void (*finalizer_t)(void *);
 
 typedef struct GC_GlobalAllocator {
     size_t small_heap_size;
+    void *small_heap_addr;
     void *small_heap_start;
     void *small_heap_stop;
 
@@ -17,6 +18,7 @@ typedef struct GC_GlobalAllocator {
     BlockList recyclable_list;
 
     size_t large_heap_size;
+    void *large_heap_addr;
     void *large_heap_start;
     void *large_heap_stop;
 

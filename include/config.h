@@ -3,6 +3,10 @@
 
 #define _DEFAULT_SOURCE
 
+#if defined(GC_REMAP) && defined(__linux__)
+#define _GNU_SOURCE
+#endif
+
 #if defined(__linux__)
 extern char __data_start[];
 extern char __bss_start[];

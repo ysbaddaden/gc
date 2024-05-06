@@ -7,7 +7,7 @@ external library for generic usages —with strong ties to Crystal.
 
 The garbage collector is based on Immix, a garbage collector introduced by
 Stephen M. Blackburn and Kathryn S. McKinley in the
-[Immix: A Mark-Region Garbage Collector with Space Efficiency, Fast Collection, and Mutator Performance](http://www.cs.utexas.edu/users/speedway/DaCapo/papers/immix-pldi-2008.pdf)
+[Immix: A Mark-Region Garbage Collector with Space Efficiency, Fast Collection, and Mutator Performance](https://www.steveblackburn.org/pubs/papers/immix-pldi-2008.pdf)
 paper published in 2008.
 
 Only the basic ideas from Immix are implemented. The goal is to implement most

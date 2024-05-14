@@ -114,7 +114,7 @@ allocated or not).
 
 ## Tests
 
-First install the ([greatest](https://github.com/silentbicycle/greatest/)
+First install the [greatest](https://github.com/silentbicycle/greatest/)
 dependency using `make setup` then run `make test` to run the test suite.
 
 Note that the test suites are merely scaffold tests for TDD of data structures.
